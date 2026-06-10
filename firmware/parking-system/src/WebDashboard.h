@@ -22,9 +22,11 @@
 // HTTP 接口：
 //  GET  /                 网页仪表盘
 //  GET  /api/status       系统状态 JSON
-//  POST /api/gate/open    手动开闸
-//  POST /api/gate/close   手动关闸
-//  POST /api/reset        重置演示状态
+//  POST /api/gate/open    手动开闸 ┐ 无认证，仅限本地演示网络；
+//  POST /api/gate/close   手动关闸 ├ 由 ENABLE_WEB_MANUAL_GATE_CONTROL
+//  POST /api/reset        重置演示 ┘ 控制，关闭后返回 403
+//
+// 安全边界：手动控制会驱动物理闸机，切勿将本设备暴露到公共网络。
 // =====================================================================
 class WebDashboard {
 public:

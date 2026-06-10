@@ -213,6 +213,18 @@ void WebDashboard::update(uint32_t now) {
             break;
 
         case NetMode::NET_STA_READY:
+            // 运行中掉线：回到 CONNECTING 等待自动重连，
+            // 超时后仍会走 AP fallback / 禁用分支，不会卡在旧 IP 上
+            if (WiFi.status() != WL_CONNECTED) {
+                _mode           = NetMode::NET_CONNECTING;
+                _connectStartMs = now;
+                strlcpy(_netSummary, "WiFi reconnecting", sizeof(_netSummary));
+                LOG_PRINTLN("[Web] Wi-Fi connection lost, waiting for reconnect");
+                break;
+            }
+            _server.handleClient();
+            break;
+
         case NetMode::NET_AP_READY:
             _server.handleClient();
             break;
@@ -263,19 +275,33 @@ void WebDashboard::handleStatus() {
     _server.send(200, "application/json", json);
 }
 
+// 手动控制接口无认证，安全边界见 Settings.h 的
+// ENABLE_WEB_MANUAL_GATE_CONTROL 注释；关闭开关后统一返回 403。
 void WebDashboard::handleGateOpen() {
+#if ENABLE_WEB_MANUAL_GATE_CONTROL
     _sm->manualOpenGate();
     _server.send(200, "application/json", "{\"ok\":true,\"action\":\"gate_open\"}");
+#else
+    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
+#endif
 }
 
 void WebDashboard::handleGateClose() {
+#if ENABLE_WEB_MANUAL_GATE_CONTROL
     _sm->manualCloseGate();
     _server.send(200, "application/json", "{\"ok\":true,\"action\":\"gate_close\"}");
+#else
+    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
+#endif
 }
 
 void WebDashboard::handleReset() {
+#if ENABLE_WEB_MANUAL_GATE_CONTROL
     _sm->resetDemo();
     _server.send(200, "application/json", "{\"ok\":true,\"action\":\"reset\"}");
+#else
+    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
+#endif
 }
 
 #else  // !ENABLE_WEB — 空实现，保证关闭功能后仍可编译

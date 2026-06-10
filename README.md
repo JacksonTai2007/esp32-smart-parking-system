@@ -159,7 +159,12 @@ cp WifiCredentials.example.h WifiCredentials.h
 - 不创建该文件也能编译运行：固件自动开启热点 `ESP32-Parking`
   （密码 `parking123`，可在 `Settings.h` 修改），手机连热点后访问
   `http://192.168.4.1/`
-- STA 连接成功后串口会打印分配到的 IP，浏览器访问该 IP 即可
+- STA 连接成功后串口会打印分配到的 IP，浏览器访问该 IP 即可；
+  运行中掉线会自动等待重连，超时后降级到 AP 热点
+- ⚠️ **安全边界**：Web 手动开/关闸接口没有认证，同一网络内任何设备都能
+  触发物理闸机——仅限本地演示网络使用，绝不可暴露公网；
+  可在 `Settings.h` 置 `ENABLE_WEB_MANUAL_GATE_CONTROL 0` 关闭（接口返回 403，
+  仪表盘变为只读）
 
 ## 11. 如何添加 RFID 白名单
 
