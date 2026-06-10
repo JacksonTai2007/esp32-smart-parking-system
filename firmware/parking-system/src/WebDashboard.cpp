@@ -147,7 +147,7 @@ void WebDashboard::begin(ParkingStateMachine* sm) {
     WiFi.setHostname(WIFI_HOSTNAME);
     WiFi.setAutoReconnect(true);
     WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
-    _mode           = NetMode::CONNECTING;
+    _mode           = NetMode::NET_CONNECTING;
     _connectStartMs = millis();
     strlcpy(_netSummary, "WiFi connecting", sizeof(_netSummary));
     LOG_PRINTF("[Web] connecting to Wi-Fi \"%s\" ...\n", WIFI_STA_SSID);
@@ -156,7 +156,7 @@ void WebDashboard::begin(ParkingStateMachine* sm) {
 #if WIFI_AP_FALLBACK
     startApFallback();
 #else
-    _mode = NetMode::DISABLED;
+    _mode = NetMode::NET_DISABLED;
     strlcpy(_netSummary, "Web: no config", sizeof(_netSummary));
     LOG_PRINTLN("[Web] dashboard disabled (no credentials, AP fallback off)");
 #endif
@@ -166,7 +166,7 @@ void WebDashboard::begin(ParkingStateMachine* sm) {
 void WebDashboard::startApFallback() {
     WiFi.mode(WIFI_AP);
     WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
-    _mode = NetMode::AP_READY;
+    _mode = NetMode::NET_AP_READY;
     startServer();
     snprintf(_netSummary, sizeof(_netSummary), "AP %s", WiFi.softAPIP().toString().c_str());
     LOG_PRINTF("[Web] AP fallback up: SSID=\"%s\" pass=\"%s\" -> http://%s/\n",
@@ -192,9 +192,9 @@ void WebDashboard::startServer() {
 
 void WebDashboard::update(uint32_t now) {
     switch (_mode) {
-        case NetMode::CONNECTING:
+        case NetMode::NET_CONNECTING:
             if (WiFi.status() == WL_CONNECTED) {
-                _mode = NetMode::STA_READY;
+                _mode = NetMode::NET_STA_READY;
                 startServer();
                 snprintf(_netSummary, sizeof(_netSummary), "IP %s",
                          WiFi.localIP().toString().c_str());
@@ -205,19 +205,19 @@ void WebDashboard::update(uint32_t now) {
 #if WIFI_AP_FALLBACK
                 startApFallback();
 #else
-                _mode = NetMode::DISABLED;
+                _mode = NetMode::NET_DISABLED;
                 strlcpy(_netSummary, "Web: offline", sizeof(_netSummary));
                 LOG_PRINTLN("[Web] dashboard disabled (connect failed, AP fallback off)");
 #endif
             }
             break;
 
-        case NetMode::STA_READY:
-        case NetMode::AP_READY:
+        case NetMode::NET_STA_READY:
+        case NetMode::NET_AP_READY:
             _server.handleClient();
             break;
 
-        case NetMode::DISABLED:
+        case NetMode::NET_DISABLED:
             break;
     }
 }

@@ -38,7 +38,9 @@ private:
     ParkingStateMachine* _sm = nullptr;
 
 #if ENABLE_WEB
-    enum class NetMode : uint8_t { DISABLED, CONNECTING, STA_READY, AP_READY };
+    // 注意：枚举值带 NET_ 前缀，避开 ESP32 core 的宏定义
+    // （esp32-hal-gpio.h 中 DISABLED 是宏，裸名会被预处理器替换）
+    enum class NetMode : uint8_t { NET_DISABLED, NET_CONNECTING, NET_STA_READY, NET_AP_READY };
 
     void startServer();
     void startApFallback();
@@ -48,7 +50,7 @@ private:
     void handleGateClose();
     void handleReset();
 
-    NetMode   _mode = NetMode::DISABLED;
+    NetMode   _mode = NetMode::NET_DISABLED;
     WebServer _server{WEB_SERVER_PORT};
     bool      _serverStarted    = false;
     uint32_t  _connectStartMs   = 0;
