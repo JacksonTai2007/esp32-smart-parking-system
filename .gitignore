@@ -80,5 +80,8 @@ firmware/parking-system/config/WifiCredentials.h
 *.hex
 .arduino15/
 
+# 本地编辑器/IDE 配置
+.vscode/
+
 # PlatformIO（如后续使用）
 .pio/
