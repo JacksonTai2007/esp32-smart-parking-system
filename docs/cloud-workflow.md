@@ -39,7 +39,9 @@
 
 ## 编译验证的三道防线
 
-1. **云端容器**：`./scripts/compile.sh`（环境允许时）
+1. **云端容器**：`./scripts/compile.sh`；若容器网络拦截 Arduino 官方源
+   （`downloads.arduino.cc` / `espressif.github.io`）但放行 GitHub，
+   先运行 `./scripts/setup-cloud-env.sh` 从 GitHub Releases 搭建工具链
 2. **GitHub Actions**：`.github/workflows/arduino-compile.yml`，PR 自动触发，
    是云端环境缺失时的权威编译结论
 3. **用户本地**：`./scripts/compile.sh` + `./scripts/upload.sh` 真机验证

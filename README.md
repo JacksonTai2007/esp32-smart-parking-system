@@ -115,6 +115,9 @@ HC-SR04 Echo 建议 1kΩ+2kΩ 分压。
 - FQBN：`esp32:esp32:esp32`；退出码 `0` 通过 / `1` 代码错误 / `2` 环境缺失
 - 依赖库：`ESP32Servo`、`MFRC522`、`Adafruit GFX Library`、`Adafruit SSD1306`
 - 每个 PR 由 GitHub Actions 自动编译（[.github/workflows/arduino-compile.yml](.github/workflows/arduino-compile.yml)）
+- **受限网络的云端 Agent 容器**（`downloads.arduino.cc` 等官方源被拦截、GitHub 放行）：
+  先运行 `./scripts/setup-cloud-env.sh`，它把 arduino-cli、ESP32 core、依赖库、ctags
+  全部改从 GitHub Releases 获取（已在 Claude Code Cloud 实测通过编译）
 
 ## 9. 如何本地烧录
 

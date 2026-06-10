@@ -13,9 +13,10 @@ Codex Cloud 负责：**PR 审查、编译验证、可维护性检查、测试建
 
 ### 编译与环境
 - [ ] 运行 `./scripts/compile.sh`（必要时 `--install-deps`）确认可编译；
-      若你的容器装不了 Arduino 环境（退出码 2），至少确认
-      GitHub Actions `Arduino Compile` 工作流是绿的，并检查
-      scripts/、CI、依赖库说明三者是否完整一致
+      若退出码 2（环境缺失）且容器网络拦截 Arduino 官方源但放行 GitHub，
+      先运行 `./scripts/setup-cloud-env.sh` 再编译（Claude Code Cloud 已实测可行）；
+      仍不行则至少确认 GitHub Actions `Arduino Compile` 工作流是绿的，
+      并检查 scripts/、CI、依赖库说明三者是否完整一致
 - [ ] 新增第三方库时，`.github/workflows/arduino-compile.yml`、
       `scripts/compile.sh`、README 的库清单是否同步更新
 

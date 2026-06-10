@@ -68,6 +68,9 @@ if arduino-cli compile --fqbn "$FQBN" --warnings default "$SKETCH"; then
     echo "[compile.sh] PASS: firmware compiles"
     exit 0
 else
-    echo "[compile.sh] FAIL: 编译失败（代码问题），请查看上方编译器输出"
+    echo "[compile.sh] FAIL: 编译失败，请查看上方编译器输出。"
+    echo "  - 如果是 C/C++ 报错: 代码问题"
+    echo "  - 如果是 ctags / 工具 fork/exec 找不到之类的报错: 环境缺件，"
+    echo "    受限网络容器请先运行 ./scripts/setup-cloud-env.sh"
     exit 1
 fi
