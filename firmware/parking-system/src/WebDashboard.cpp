@@ -242,6 +242,21 @@ void WebDashboard::handleRoot() {
     _server.send_P(200, "text/html", DASHBOARD_HTML);
 }
 
+// JSON 字符串字段统一转义。当前字段（UID 十六进制、固件内置消息）内容
+// 受控，转义属防御式处理：后续往 JSON 里加动态文本时不会产生非法格式。
+static void appendJsonEscaped(String& out, const char* s) {
+    for (; *s != '\0'; ++s) {
+        switch (*s) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:   out += *s;     break;
+        }
+    }
+}
+
 void WebDashboard::handleStatus() {
     const ParkingStatus st = _sm->status();
 
@@ -263,9 +278,9 @@ void WebDashboard::handleStatus() {
     json += "\",\"entryState\":\"";
     json += entryStateName(st.entryState);
     json += "\",\"lastCardUid\":\"";
-    json += st.lastCardUid;  // UID 为受控的十六进制字符串，无需转义
+    appendJsonEscaped(json, st.lastCardUid);
     json += "\",\"lastMessage\":\"";
-    json += st.lastMessage;  // 消息为固件内置英文常量，无需转义
+    appendJsonEscaped(json, st.lastMessage);
     json += "\",\"alarmActive\":";
     json += st.alarmActive ? "true" : "false";
     json += ",\"uptimeMs\":";
