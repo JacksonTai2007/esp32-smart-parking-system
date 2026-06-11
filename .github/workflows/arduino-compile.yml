@@ -1,0 +1,56 @@
+# =====================================================================
+# Arduino 编译检查工作流
+#
+# 在 PR / push main 时自动验证固件可编译。
+# 这是云端协作的关键防线：Claude Code Cloud 与 Codex Cloud 的容器内
+# 可能无法安装 Arduino 环境，由本工作流在 GitHub Actions 上做真实编译。
+#
+# 注意：这里只验证"能编译"，不能验证真实硬件行为，
+# 硬件验证项见每个 PR 的 "Local hardware validation needed" 部分。
+# =====================================================================
+name: Arduino Compile
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  FQBN: "esp32:esp32:esp32"
+  SKETCH: "firmware/parking-system"
+  ESP32_BOARD_URL: "https://espressif.github.io/arduino-esp32/package_esp32_index.json"
+  # 如需可复现构建，可固定版本，例如 esp32:esp32@3.1.1
+  ESP32_CORE: "esp32:esp32"
+
+jobs:
+  compile:
+    name: Compile ESP32 firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Cache Arduino cores and libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-${{ runner.os }}-${{ hashFiles('.github/workflows/arduino-compile.yml') }}
+
+      - name: Install ESP32 board core
+        run: |
+          arduino-cli core update-index --additional-urls "$ESP32_BOARD_URL"
+          arduino-cli core install "$ESP32_CORE" --additional-urls "$ESP32_BOARD_URL"
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "ESP32Servo" "MFRC522" "Adafruit GFX Library" "Adafruit SSD1306"
+
+      - name: Compile firmware
+        run: bash scripts/compile.sh

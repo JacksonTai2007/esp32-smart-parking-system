@@ -67,3 +67,21 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# ===== ESP32 firmware =====
+# 真实 Wi-Fi 凭据绝不入库（模板见 WifiCredentials.example.h）
+WifiCredentials.h
+firmware/parking-system/config/WifiCredentials.h
+
+# Arduino build artifacts
+*.bin
+*.elf
+*.map
+*.hex
+.arduino15/
+
+# 本地编辑器/IDE 配置
+.vscode/
+
+# PlatformIO（如后续使用）
+.pio/
