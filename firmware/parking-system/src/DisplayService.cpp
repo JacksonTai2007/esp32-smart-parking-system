@@ -12,7 +12,9 @@ bool DisplayService::begin() {
     if (!_oled->begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS)) {
         LOG_PRINTF("[OLED] init FAILED at 0x%02X (检查接线/地址, 部分模块为 0x3D)\n",
                    OLED_I2C_ADDRESS);
-        _ok = false;
+        delete _oled;  // 初始化失败即释放，无屏运行时不白占内存
+        _oled = nullptr;
+        _ok   = false;
         return false;
     }
     _ok = true;
@@ -37,7 +39,7 @@ void DisplayService::splash() {
 }
 
 void DisplayService::update(uint32_t now, const ParkingStatus& st, const char* netInfo) {
-    if (!_ok || now - _lastDrawMs < DISPLAY_REFRESH_MS) {
+    if (!_ok || _oled == nullptr || now - _lastDrawMs < DISPLAY_REFRESH_MS) {
         return;
     }
     _lastDrawMs = now;
