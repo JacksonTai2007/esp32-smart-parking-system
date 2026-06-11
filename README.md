@@ -126,6 +126,35 @@ HC-SR04 Echo 建议 1kΩ+2kΩ 分压。
 
 ## 9. 如何本地烧录
 
+### 方式一（推荐）：Arduino IDE
+
+仓库布局完全遵循 Arduino 草图规范（`.ino` 与文件夹同名、`src/` 子目录自动
+递归编译），IDE 直接打开即可，无需调整结构。建议使用 **Arduino IDE 2.x**
+（其底层与本项目 CI 用的 arduino-cli 是同一套构建引擎）。
+
+1. **装板卡支持**：File → Preferences → Additional boards manager URLs 填入
+   `https://espressif.github.io/arduino-esp32/package_esp32_index.json`，
+   然后 Boards Manager 搜索 `esp32`（by Espressif Systems）安装
+   （CI 验证版本为 3.3.10，装 3.x 即可）
+2. **装库**：Library Manager 依次安装 `ESP32Servo`、`MFRC522`
+   （by GithubCommunity）、`Adafruit GFX Library`、`Adafruit SSD1306`
+   （提示安装依赖 Adafruit BusIO 时选 Install All）
+3. **打开工程**：File → Open 选择
+   `firmware/parking-system/parking-system.ino`
+4. **配置 Wi-Fi（可选）**：把 `config/WifiCredentials.example.h` 复制为
+   `config/WifiCredentials.h` 填入账号（任意编辑器改即可）；
+   不配置则自动走 AP 热点模式
+5. **选板与端口**：Tools → Board 选 **ESP32 Dev Module**（默认参数即可），
+   Tools → Port 选对应串口
+6. **编译/烧录**：Verify（✓）编译，Upload（→）烧录；个别开发板若出现
+   `Connecting...` 卡住，按住板上 **BOOT** 键再松开即可进入下载模式
+7. **看日志**：Serial Monitor，波特率选 **115200**
+
+调参只需改 `config/Settings.h`（阈值、角度、电平、白名单），改完重新
+Verify + Upload。
+
+### 方式二：arduino-cli（脚本封装）
+
 ```bash
 # 安装 arduino-cli 后：
 ./scripts/compile.sh --install-deps      # 首次准备环境
@@ -144,8 +173,6 @@ arduino-cli upload  -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 firmware/parking-sy
 arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200                 # 串口监视
 ```
 
-也可以用 Arduino IDE：打开 `firmware/parking-system/parking-system.ino`，
-开发板选 "ESP32 Dev Module"，安装上述 4 个库后编译上传。
 `scripts/upload.sh` 仅限本地使用，云端 Agent 无串口硬件。
 
 ## 10. 如何配置 Wi-Fi
