@@ -41,23 +41,26 @@ OLED 和 Web 是只读消费者（Web 的手动控制经状态机转发，不直
 
 ## 主状态机
 
+默认流程（无刷卡，`ENABLE_RFID=0`）：
+
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
     IDLE --> VEHICLE_DETECTED : 来车且有空位
     IDLE --> PARKING_FULL : 来车但满位（长响1次）
-    VEHICLE_DETECTED --> WAITING_FOR_CARD : 短暂停留后提示刷卡
+    VEHICLE_DETECTED --> ADMITTED : 短暂停留后自动放行（短响1次+开闸）
     VEHICLE_DETECTED --> IDLE : 车辆离开
-    WAITING_FOR_CARD --> CARD_ACCEPTED : 白名单卡（短响1次+开闸）
-    WAITING_FOR_CARD --> CARD_REJECTED : 非白名单卡（短响3次）
-    WAITING_FOR_CARD --> IDLE : 车辆离开或等待超时
-    WAITING_FOR_CARD --> PARKING_FULL : 等待中变为满位
-    CARD_ACCEPTED --> IDLE : 闸机完成 开-保持-关 周期
-    CARD_REJECTED --> WAITING_FOR_CARD : 车辆仍在，可重刷
-    CARD_REJECTED --> IDLE : 车辆离开
-    PARKING_FULL --> WAITING_FOR_CARD : 有车位腾出
+    ADMITTED --> IDLE : 闸机完成 开-保持-关 周期
+    PARKING_FULL --> VEHICLE_DETECTED : 有车位腾出
     PARKING_FULL --> IDLE : 车辆离开
 ```
+
+同一辆车在 `ADMITTED` 完成后被标记为已放行，需先驶离入口（超声波重新判定为空）
+才会再次触发放行，避免车停在传感器前导致连续开闸。
+
+启用刷卡（`ENABLE_RFID=1`）时，在 `VEHICLE_DETECTED` 之后插入 `WAITING_FOR_CARD`：
+合法卡 → `ADMITTED`，非法卡 → `CARD_REJECTED`（短响 3 次，车辆仍在可重刷），
+等待超时或车辆离开回 `IDLE`。
 
 闸机自身另有四态子状态：`CLOSED → OPENING → OPEN → CLOSING → CLOSED`，
 SG90 无位置反馈，OPENING/CLOSING 按 `GATE_MOTION_TIME_MS` 计时推进，

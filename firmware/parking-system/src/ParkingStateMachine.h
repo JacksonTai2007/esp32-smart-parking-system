@@ -11,12 +11,13 @@
 // =====================================================================
 // ParkingStateMachine — 主业务状态机
 //
-// 流程（docs/architecture.md 有完整状态图）：
-//   IDLE --超声波来车--> VEHICLE_DETECTED --> WAITING_FOR_CARD
-//     WAITING_FOR_CARD --合法卡--> CARD_ACCEPTED（蜂鸣 1 短响 + 开闸）
-//     WAITING_FOR_CARD --非法卡--> CARD_REJECTED（蜂鸣 3 短响，不开闸）
+// 流程（默认无刷卡，ENABLE_RFID=0）：
+//   IDLE --超声波来车--> VEHICLE_DETECTED --短暂停留--> ADMITTED（自动开闸 + 欢迎）
 //     满位时 --> PARKING_FULL（蜂鸣 1 长响，不开闸）
-//   闸机自动关闭后回到 IDLE
+//   闸机自动关闭后回到 IDLE；同一辆车需先驶离入口，才会再次放行（去抖防连开）
+//
+// 启用刷卡（ENABLE_RFID=1）时，在 VEHICLE_DETECTED 之后插入鉴权：
+//   WAITING_FOR_CARD --合法卡--> ADMITTED；--非法卡--> CARD_REJECTED
 //
 // 职责边界：
 //  - 输入：UltrasonicService（来车）、RfidService（刷卡）、SlotManager（满位）
@@ -40,6 +41,7 @@ public:
 private:
     void enterState(EntryState s, uint32_t now);
     void setMessage(const char* msg);
+    void admit(uint32_t now);  // 放行：开闸 + 提示音 + 进入 ADMITTED
 
     GateController*    _gate   = nullptr;
     RfidService*       _rfid   = nullptr;
@@ -47,8 +49,9 @@ private:
     SlotManager*       _slots  = nullptr;
     AlertService*      _alerts = nullptr;
 
-    EntryState _entry        = EntryState::IDLE;
-    uint32_t   _entrySinceMs = 0;
+    EntryState _entry          = EntryState::IDLE;
+    uint32_t   _entrySinceMs   = 0;
+    bool       _vehicleHandled = false;  // 当前在位车辆是否已放行，防止同一辆车反复开闸
     char       _lastUid[RFID_UID_MAX_LEN] = "--";
     char       _message[48]               = "System ready";
 };

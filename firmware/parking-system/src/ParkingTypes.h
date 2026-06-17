@@ -18,9 +18,9 @@ enum class GateState : uint8_t {
 enum class EntryState : uint8_t {
     IDLE,              // 空闲，等待车辆
     VEHICLE_DETECTED,  // 超声波检测到来车
-    WAITING_FOR_CARD,  // 提示刷卡，等待 RFID
-    CARD_ACCEPTED,     // 合法卡，开闸放行
-    CARD_REJECTED,     // 非法卡，拒绝
+    WAITING_FOR_CARD,  // 提示刷卡，等待 RFID（仅 ENABLE_RFID=1）
+    ADMITTED,          // 放行：开闸欢迎入场（自动放行或刷卡通过都进入此状态）
+    CARD_REJECTED,     // 非法卡，拒绝（仅 ENABLE_RFID=1）
     PARKING_FULL,      // 车位已满，不开闸
 };
 
@@ -76,7 +76,7 @@ inline const char* entryStateName(EntryState s) {
         case EntryState::IDLE:             return "idle";
         case EntryState::VEHICLE_DETECTED: return "vehicle_detected";
         case EntryState::WAITING_FOR_CARD: return "waiting_for_card";
-        case EntryState::CARD_ACCEPTED:    return "card_accepted";
+        case EntryState::ADMITTED:         return "admitted";
         case EntryState::CARD_REJECTED:    return "card_rejected";
         case EntryState::PARKING_FULL:     return "parking_full";
     }

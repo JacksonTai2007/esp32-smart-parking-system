@@ -29,20 +29,24 @@ void ParkingStateMachine::setMessage(const char* msg) {
 }
 
 void ParkingStateMachine::update(uint32_t now) {
-    // 刷卡事件：任何状态下都记录 UID（方便从网页/串口抄卡号加白名单），
-    // 但只有 WAITING_FOR_CARD 状态才会触发开闸/拒绝业务。
+#if ENABLE_RFID
+    // 刷卡事件：记录 UID（方便从网页/串口抄卡号加白名单），
+    // 只有 WAITING_FOR_CARD 状态才会用它触发开闸/拒绝业务。
     RfidEvent card;
     const bool hasCard = _rfid->takeEvent(card);
     if (hasCard) {
         strlcpy(_lastUid, card.uid, sizeof(_lastUid));
     }
+#endif
 
     const bool vehicle = _sonar->vehiclePresent();
     const bool full    = _slots->isFull();
 
     switch (_entry) {
         case EntryState::IDLE:
-            if (vehicle) {
+            if (!vehicle) {
+                _vehicleHandled = false;  // 入口空了，重新武装，允许下一辆车
+            } else if (!_vehicleHandled) {
                 if (full) {
                     enterState(EntryState::PARKING_FULL, now);
                     setMessage("Parking FULL!");
@@ -58,54 +62,59 @@ void ParkingStateMachine::update(uint32_t now) {
             if (!vehicle) {
                 enterState(EntryState::IDLE, now);
                 setMessage("System ready");
+            } else if (full) {
+                enterState(EntryState::PARKING_FULL, now);
+                setMessage("Parking FULL!");
+                _alerts->play(AlertPattern::FULL);
             } else if (now - _entrySinceMs >= VEHICLE_DETECTED_DWELL_MS) {
+#if ENABLE_RFID
                 enterState(EntryState::WAITING_FOR_CARD, now);
                 setMessage("Please swipe card");
+#else
+                admit(now);  // 无刷卡：检测到车辆即自动放行
+#endif
             }
             break;
 
         case EntryState::WAITING_FOR_CARD:
+#if ENABLE_RFID
             if (full) {
                 enterState(EntryState::PARKING_FULL, now);
                 setMessage("Parking FULL!");
                 _alerts->play(AlertPattern::FULL);
-                break;
-            }
-            if (!vehicle) {
+            } else if (!vehicle) {
                 enterState(EntryState::IDLE, now);
                 setMessage("System ready");
-                break;
-            }
-            if (now - _entrySinceMs >= CARD_WAIT_TIMEOUT_MS) {
+            } else if (now - _entrySinceMs >= CARD_WAIT_TIMEOUT_MS) {
                 enterState(EntryState::IDLE, now);
                 setMessage("Card wait timeout");
-                break;
-            }
-            if (hasCard) {
+            } else if (hasCard) {
                 if (card.authorized) {
-                    enterState(EntryState::CARD_ACCEPTED, now);
-                    setMessage("Welcome! Gate opening");
-                    _alerts->play(AlertPattern::SUCCESS);
-                    _gate->openGate();
+                    admit(now);
                 } else {
                     enterState(EntryState::CARD_REJECTED, now);
                     setMessage("Invalid card!");
                     _alerts->play(AlertPattern::REJECT);
                 }
             }
+#else
+            enterState(EntryState::IDLE, now);  // 无刷卡模式不会进入此状态
+#endif
             break;
 
-        case EntryState::CARD_ACCEPTED:
+        case EntryState::ADMITTED:
             // 等待整个开闸-保持-关闸周期结束（进入本状态时闸机已在 OPENING，
-            // 不会被立即误判为已关闭）
+            // 不会被立即误判为已关闭）；完成后标记本车已放行
             if (_gate->state() == GateState::CLOSED &&
                 now - _entrySinceMs >= GATE_MOTION_TIME_MS) {
+                _vehicleHandled = true;  // 同一辆车驶离入口前不再重复开闸
                 enterState(EntryState::IDLE, now);
                 setMessage("System ready");
             }
             break;
 
         case EntryState::CARD_REJECTED:
+#if ENABLE_RFID
             if (now - _entrySinceMs >= REJECT_MESSAGE_MS) {
                 if (vehicle && !full) {
                     enterState(EntryState::WAITING_FOR_CARD, now);
@@ -119,6 +128,9 @@ void ParkingStateMachine::update(uint32_t now) {
                     setMessage("System ready");
                 }
             }
+#else
+            enterState(EntryState::IDLE, now);  // 无刷卡模式不会进入此状态
+#endif
             break;
 
         case EntryState::PARKING_FULL:
@@ -126,12 +138,24 @@ void ParkingStateMachine::update(uint32_t now) {
                 enterState(EntryState::IDLE, now);
                 setMessage("System ready");
             } else if (!full) {
-                // 等待中有车位腾出，转入等待刷卡
+                // 等待中有车位腾出
+#if ENABLE_RFID
                 enterState(EntryState::WAITING_FOR_CARD, now);
                 setMessage("Please swipe card");
+#else
+                enterState(EntryState::VEHICLE_DETECTED, now);
+                setMessage("Vehicle detected");
+#endif
             }
             break;
     }
+}
+
+void ParkingStateMachine::admit(uint32_t now) {
+    enterState(EntryState::ADMITTED, now);
+    setMessage("Welcome! Gate opening");
+    _alerts->play(AlertPattern::SUCCESS);
+    _gate->openGate();
 }
 
 ParkingStatus ParkingStateMachine::status() const {
@@ -167,8 +191,9 @@ void ParkingStateMachine::resetDemo() {
     LOG_PRINTLN("[SM] demo reset (web)");
     _alerts->stopAll();
     _gate->closeGate();
-    _entry        = EntryState::IDLE;
-    _entrySinceMs = millis();
+    _entry          = EntryState::IDLE;
+    _entrySinceMs   = millis();
+    _vehicleHandled = false;
     strlcpy(_lastUid, "--", sizeof(_lastUid));
     setMessage("Demo reset");
 }
