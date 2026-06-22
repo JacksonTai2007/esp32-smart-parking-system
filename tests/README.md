@@ -32,7 +32,7 @@
 | 7 | 去抖有效 | 在传感器前快速抖动手 | 抖动不会误触发进出场（`SLOT_DEBOUNCE_MS` 内的跳变被吸收）；必要时调大该值 |
 | 8 | 满位提示 | 遮挡全部 4 个车位 | 最后一位占用时长响 **1 次**，消息 `PN in - Parking FULL`，OLED/Web `Free 0/总数` |
 | 9 | Web 仪表盘 | 浏览器/手机访问 | 显示总/占用/剩余车位、车位网格（占用显示实时停留时长）、累计收入/停车次数/单价、最近停车记录、系统消息与运行时间，每 1 秒刷新 |
-| 10 | Web 清零 | 点"清零累计收入" | `POST /api/reset` 后累计收入与最近记录归零（`ENABLE_WEB_MANUAL_CONTROL=0` 时返回 403） |
+| 10 | Web 清零 | 点"清零累计收入" | `POST /api/reset` 后累计收入与最近记录归零、在场车位计时同步归零（`ENABLE_WEB_MANUAL_CONTROL=0` 时返回 403） |
 | 11 | Web STA | 配好 `WifiCredentials.h` | 日志打印 IP，浏览器访问该 IP 看仪表盘 |
 | 12 | Web AP 兜底 | 删除/不建凭据文件 | 日志打印 AP SSID，手机连 `ESP32-Parking` 访问 192.168.4.1 |
 | 13 | 参数生效 | 改 `Settings.h` 单价/免费时长重新烧录 | `[Bill] init OK, free Ns then M cents/min` 随之变化，计费结果按新参数 |

@@ -41,8 +41,8 @@ flowchart LR
 
 输入只产出事实（车位占用状态），决策集中在 `ParkingManager`：它跟踪每个车位的
 占用变化、记录入场时刻、在离场时调用 `BillingService` 结算费用。OLED 和 Web 是
-只读消费者（Web 的"清零累计收入"经 `ParkingManager` 转发到 `BillingService`，
-不直接改统计）。
+只读消费者（Web 的"清零累计收入"由 `ParkingManager` 转发到 `BillingService`
+清零营收，并同时把在场车辆的入场计时重置为当前时刻）。
 
 ## 业务流程（车位事件驱动）
 

@@ -88,5 +88,11 @@ ParkingStatus ParkingManager::status() const {
 void ParkingManager::resetStats() {
     LOG_PRINTLN("[PM] stats reset (web)");
     _billing->reset();
+    // 顺便把在场车辆的入场计时也归零：点"清零"相当于本轮演示重新开始，
+    // 此后这些车离场时按"从重置时刻起"的时长计费，而非原始入场时刻。
+    const uint32_t now = millis();
+    for (uint8_t i = 0; i < TOTAL_PARKING_SLOTS; ++i) {
+        _enterMs[i] = now;
+    }
     setMessage("Stats reset");
 }
