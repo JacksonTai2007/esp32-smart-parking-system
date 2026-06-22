@@ -37,12 +37,11 @@ DATA_DIR="$HOME/.arduino15"
 IDX_DIR="$HOME/.arduino15-github-index"
 
 # 与 .github/workflows/arduino-compile.yml 安装的库版本保持一致
+# （本期方案去掉 RFID/舵机，故不再需要 ESP32Servo、MFRC522）
 LIB_GIT_SPECS=(
-    "https://github.com/madhephaestus/ESP32Servo.git#3.2.1"
-    "https://github.com/miguelbalboa/rfid.git#1.4.12"
     "https://github.com/adafruit/Adafruit-GFX-Library.git#1.12.6"
     "https://github.com/adafruit/Adafruit_SSD1306.git#2.5.17"
-    "https://github.com/adafruit/Adafruit_BusIO.git#1.17.4"
+    "https://github.com/adafruit/Adafruit_BusIO.git#1.17.4"  # Adafruit SSD1306 依赖
 )
 
 log() { echo "[setup-cloud-env] $*"; }

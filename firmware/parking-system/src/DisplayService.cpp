@@ -64,16 +64,15 @@ void DisplayService::update(uint32_t now, const ParkingStatus& st, const char* n
         _oled->print(line);
     }
 
-    snprintf(line, sizeof(line), "Gate: %s", gateStateName(st.gateState));
+    // 累计收入（元）+ 停车次数；OLED 字库为 ASCII，货币符号只在网页显示
+    char money[12];
+    formatMoneyCents(money, sizeof(money), st.totalRevenueCents);
+    snprintf(line, sizeof(line), "Total %s n%lu", money, (unsigned long)st.sessionCount);
     _oled->setCursor(0, 30);
     _oled->print(line);
 
-    snprintf(line, sizeof(line), "Card: %.15s", st.lastCardUid);
-    _oled->setCursor(0, 39);
-    _oled->print(line);
-
     snprintf(line, sizeof(line), "%.21s", st.lastMessage);
-    _oled->setCursor(0, 48);
+    _oled->setCursor(0, 39);
     _oled->print(line);
 
     snprintf(line, sizeof(line), "%.21s", netInfo != nullptr ? netInfo : "");

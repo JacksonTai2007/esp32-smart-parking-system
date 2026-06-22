@@ -17,7 +17,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FQBN="${FQBN:-esp32:esp32:esp32}"
 SKETCH="${SKETCH:-$REPO_ROOT/firmware/parking-system}"
 ESP32_BOARD_URL="${ESP32_BOARD_URL:-https://espressif.github.io/arduino-esp32/package_esp32_index.json}"
-REQUIRED_LIBS=("ESP32Servo" "MFRC522" "Adafruit GFX Library" "Adafruit SSD1306")
+REQUIRED_LIBS=("Adafruit GFX Library" "Adafruit SSD1306")
 
 INSTALL_DEPS=0
 for arg in "$@"; do
