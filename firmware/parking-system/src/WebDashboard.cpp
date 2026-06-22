@@ -35,6 +35,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .stat b { display:block; font-size:1.8rem; }
   .stat span { color:var(--dim); font-size:.78rem; }
   #stFree b { color:var(--ok); }
+  #stRevenue b { color:var(--warn); }
   .slots { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
   .slot { border-radius:12px; padding:14px 6px; text-align:center; font-weight:600;
           background:var(--card); border:1px solid var(--line); }
@@ -43,14 +44,15 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .slot small { display:block; font-weight:400; font-size:.72rem; margin-top:4px; color:var(--dim); }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:12px;
            padding:12px 14px; margin-bottom:12px; font-size:.9rem; }
+  .panel h2 { font-size:.85rem; color:var(--dim); font-weight:600; margin-bottom:6px; }
   .row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed var(--line); }
   .row:last-child { border-bottom:none; }
   .row .k { color:var(--dim); }
-  .gate-open { color:var(--ok); } .gate-closed { color:var(--dim); }
-  .gate-opening, .gate-closing { color:var(--warn); }
-  .btns { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .fee { color:var(--warn); }
+  .muted { color:var(--dim); }
+  .btns { display:grid; grid-template-columns:1fr; gap:10px; }
   button { border:none; border-radius:10px; padding:12px 0; font-size:.95rem; cursor:pointer; color:#fff; }
-  #btnOpen { background:#1f7a4d; } #btnClose { background:#7a1f2b; } #btnReset { background:#33415e; }
+  #btnReset { background:#33415e; }
   button:active { opacity:.75; }
   .foot { color:var(--dim); font-size:.72rem; text-align:center; margin-top:14px; }
 </style>
@@ -58,7 +60,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <body>
   <span id="conn" class="badge off">连接中...</span>
   <h1>ESP32 智能停车场</h1>
-  <div class="sub">Smart Parking System · 毕业设计演示</div>
+  <div class="sub">Smart Parking System · 车位识别 + 计费 · 毕业设计演示</div>
 
   <div class="stats">
     <div class="stat" id="stTotal"><b>-</b><span>总车位</span></div>
@@ -68,53 +70,69 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
   <div class="slots" id="slots"></div>
 
+  <div class="stats">
+    <div class="stat" id="stRevenue"><b>-</b><span>累计收入</span></div>
+    <div class="stat" id="stCount"><b>-</b><span>停车次数</span></div>
+    <div class="stat" id="stRate"><b>-</b><span>计费单价</span></div>
+  </div>
+
   <div class="panel">
-    <div class="row"><span class="k">闸机状态</span><span id="gate">-</span></div>
-    <div class="row"><span class="k">入口状态</span><span id="entry">-</span></div>
-    <div class="row"><span class="k">最近刷卡 UID</span><span id="card">-</span></div>
+    <h2>最近停车记录</h2>
+    <div id="recent"><div class="row muted">暂无记录</div></div>
+  </div>
+
+  <div class="panel">
     <div class="row"><span class="k">系统消息</span><span id="msg">-</span></div>
     <div class="row"><span class="k">运行时间</span><span id="up">-</span></div>
   </div>
 
   <div class="btns">
-    <button id="btnOpen"  onclick="post('/api/gate/open')">手动开闸</button>
-    <button id="btnClose" onclick="post('/api/gate/close')">手动关闸</button>
-    <button id="btnReset" onclick="post('/api/reset')">重置演示</button>
+    <button id="btnReset" onclick="reset()">清零累计收入</button>
   </div>
 
   <div class="foot">每 1 秒自动刷新 · GET /api/status</div>
 
 <script>
-var GATE_CN  = { closed:'已关闭', opening:'开闸中', open:'已开启', closing:'关闸中' };
-var ENTRY_CN = { idle:'空闲', vehicle_detected:'检测到车辆', waiting_for_card:'等待刷卡',
-                 card_accepted:'刷卡成功', card_rejected:'无效卡', parking_full:'车位已满' };
-
-function fmtUptime(ms) {
+function fmtDur(ms) {
   var s = Math.floor(ms / 1000);
-  var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
-  return h + 'h ' + m + 'm ' + (s % 60) + 's';
+  var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return (h > 0 ? h + ':' : '') + pad(m) + ':' + pad(ss);
 }
+function fmtMoney(cents, sym) { return sym + (cents / 100).toFixed(2); }
 
 function render(st) {
   document.querySelector('#stTotal b').textContent = st.totalSlots;
   document.querySelector('#stOcc b').textContent   = st.occupiedSlots;
   document.querySelector('#stFree b').textContent  = st.freeSlots;
+  document.querySelector('#stRevenue b').textContent = fmtMoney(st.totalRevenueCents, st.currency);
+  document.querySelector('#stCount b').textContent   = st.sessionCount;
+  document.querySelector('#stRate b').textContent    =
+    fmtMoney(st.ratePerMinCents, st.currency) + '/min';
 
   var html = '';
   for (var i = 0; i < st.slots.length; i++) {
-    var occ = st.slots[i];
-    html += '<div class="slot ' + (occ ? 'occ' : 'free') + '">P' + (i + 1) +
-            '<small>' + (occ ? '占用' : '空闲') + '</small></div>';
+    var s = st.slots[i];
+    var info = s.occupied ? fmtDur(s.durationMs) : '空闲';
+    html += '<div class="slot ' + (s.occupied ? 'occ' : 'free') + '">P' + (i + 1) +
+            '<small>' + info + '</small></div>';
   }
   document.getElementById('slots').innerHTML = html;
 
-  var g = document.getElementById('gate');
-  g.textContent = GATE_CN[st.gateState] || st.gateState;
-  g.className = 'gate-' + st.gateState;
-  document.getElementById('entry').textContent = ENTRY_CN[st.entryState] || st.entryState;
-  document.getElementById('card').textContent  = st.lastCardUid;
-  document.getElementById('msg').textContent   = st.lastMessage;
-  document.getElementById('up').textContent    = fmtUptime(st.uptimeMs);
+  var r = '';
+  if (st.recent && st.recent.length) {
+    for (var j = 0; j < st.recent.length; j++) {
+      var e = st.recent[j];
+      r += '<div class="row"><span class="k">P' + e.slot + ' · ' + fmtDur(e.durationMs) +
+           '</span><span class="fee">' + fmtMoney(e.feeCents, st.currency) + '</span></div>';
+    }
+  } else {
+    r = '<div class="row muted">暂无记录</div>';
+  }
+  document.getElementById('recent').innerHTML = r;
+
+  document.getElementById('msg').textContent = st.lastMessage;
+  document.getElementById('up').textContent  = fmtDur(st.uptimeMs);
 }
 
 function tick() {
@@ -128,8 +146,9 @@ function tick() {
   });
 }
 
-function post(path) {
-  fetch(path, { method: 'POST' }).then(tick).catch(function () {});
+function reset() {
+  if (!confirm('确定清零累计收入与最近记录？')) { return; }
+  fetch('/api/reset', { method: 'POST' }).then(tick).catch(function () {});
 }
 
 setInterval(tick, 1000);
@@ -139,8 +158,8 @@ tick();
 </html>
 )rawliteral";
 
-void WebDashboard::begin(ParkingStateMachine* sm) {
-    _sm = sm;
+void WebDashboard::begin(ParkingManager* pm) {
+    _pm = pm;
 
 #ifdef HAS_WIFI_CREDENTIALS
     WiFi.mode(WIFI_STA);
@@ -179,8 +198,6 @@ void WebDashboard::startServer() {
     }
     _server.on("/", HTTP_GET, [this]() { handleRoot(); });
     _server.on("/api/status", HTTP_GET, [this]() { handleStatus(); });
-    _server.on("/api/gate/open", HTTP_POST, [this]() { handleGateOpen(); });
-    _server.on("/api/gate/close", HTTP_POST, [this]() { handleGateClose(); });
     _server.on("/api/reset", HTTP_POST, [this]() { handleReset(); });
     _server.onNotFound([this]() {
         _server.send(404, "application/json", "{\"error\":\"not found\"}");
@@ -242,8 +259,8 @@ void WebDashboard::handleRoot() {
     _server.send_P(200, "text/html", DASHBOARD_HTML);
 }
 
-// JSON 字符串字段统一转义。当前字段（UID 十六进制、固件内置消息）内容
-// 受控，转义属防御式处理：后续往 JSON 里加动态文本时不会产生非法格式。
+// JSON 字符串字段统一转义。当前字段（固件内置消息、货币符号）内容受控，
+// 转义属防御式处理：后续往 JSON 里加动态文本时不会产生非法格式。
 static void appendJsonEscaped(String& out, const char* s) {
     for (; *s != '\0'; ++s) {
         switch (*s) {
@@ -258,10 +275,10 @@ static void appendJsonEscaped(String& out, const char* s) {
 }
 
 void WebDashboard::handleStatus() {
-    const ParkingStatus st = _sm->status();
+    const ParkingStatus st = _pm->status();
 
     String json;
-    json.reserve(512);
+    json.reserve(768);
     json += "{\"totalSlots\":";
     json += st.totalSlots;
     json += ",\"occupiedSlots\":";
@@ -271,48 +288,47 @@ void WebDashboard::handleStatus() {
     json += ",\"slots\":[";
     for (uint8_t i = 0; i < st.totalSlots && i < MAX_PARKING_SLOTS; ++i) {
         if (i > 0) json += ',';
+        json += "{\"occupied\":";
         json += st.slotOccupied[i] ? "true" : "false";
+        json += ",\"durationMs\":";
+        json += st.slotDurationMs[i];
+        json += '}';
     }
-    json += "],\"gateState\":\"";
-    json += gateStateName(st.gateState);
-    json += "\",\"entryState\":\"";
-    json += entryStateName(st.entryState);
-    json += "\",\"lastCardUid\":\"";
-    appendJsonEscaped(json, st.lastCardUid);
-    json += "\",\"lastMessage\":\"";
+    json += "],\"totalRevenueCents\":";
+    json += st.totalRevenueCents;
+    json += ",\"sessionCount\":";
+    json += st.sessionCount;
+    json += ",\"ratePerMinCents\":";
+    json += (uint32_t)PARKING_RATE_PER_MIN_CENTS;
+    json += ",\"freePeriodSec\":";
+    json += (uint32_t)PARKING_FREE_PERIOD_SEC;
+    json += ",\"currency\":\"";
+    appendJsonEscaped(json, CURRENCY_SYMBOL);
+    json += "\",\"recent\":[";
+    for (uint8_t i = 0; i < st.recentCount && i < MAX_SESSION_LOG; ++i) {
+        if (i > 0) json += ',';
+        json += "{\"slot\":";
+        json += st.recent[i].slotId;
+        json += ",\"durationMs\":";
+        json += st.recent[i].durationMs;
+        json += ",\"feeCents\":";
+        json += st.recent[i].feeCents;
+        json += '}';
+    }
+    json += "],\"lastMessage\":\"";
     appendJsonEscaped(json, st.lastMessage);
-    json += "\",\"alarmActive\":";
-    json += st.alarmActive ? "true" : "false";
-    json += ",\"uptimeMs\":";
+    json += "\",\"uptimeMs\":";
     json += st.uptimeMs;
     json += '}';
 
     _server.send(200, "application/json", json);
 }
 
-// 手动控制接口无认证，安全边界见 Settings.h 的
-// ENABLE_WEB_MANUAL_GATE_CONTROL 注释；关闭开关后统一返回 403。
-void WebDashboard::handleGateOpen() {
-#if ENABLE_WEB_MANUAL_GATE_CONTROL
-    _sm->manualOpenGate();
-    _server.send(200, "application/json", "{\"ok\":true,\"action\":\"gate_open\"}");
-#else
-    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
-#endif
-}
-
-void WebDashboard::handleGateClose() {
-#if ENABLE_WEB_MANUAL_GATE_CONTROL
-    _sm->manualCloseGate();
-    _server.send(200, "application/json", "{\"ok\":true,\"action\":\"gate_close\"}");
-#else
-    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
-#endif
-}
-
+// 管理接口无认证，安全边界见 Settings.h 的 ENABLE_WEB_MANUAL_CONTROL 注释；
+// 关闭开关后返回 403。
 void WebDashboard::handleReset() {
-#if ENABLE_WEB_MANUAL_GATE_CONTROL
-    _sm->resetDemo();
+#if ENABLE_WEB_MANUAL_CONTROL
+    _pm->resetStats();
     _server.send(200, "application/json", "{\"ok\":true,\"action\":\"reset\"}");
 #else
     _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
@@ -321,8 +337,8 @@ void WebDashboard::handleReset() {
 
 #else  // !ENABLE_WEB — 空实现，保证关闭功能后仍可编译
 
-void WebDashboard::begin(ParkingStateMachine* sm) {
-    _sm = sm;
+void WebDashboard::begin(ParkingManager* pm) {
+    _pm = pm;
     LOG_PRINTLN("[Web] disabled by ENABLE_WEB=0");
 }
 

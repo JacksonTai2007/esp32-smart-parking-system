@@ -29,13 +29,13 @@ void AlertService::play(AlertPattern pattern) {
     _loop    = false;
 
     switch (pattern) {
-        case AlertPattern::SUCCESS:
+        case AlertPattern::ENTER:
             _beepsLeft = 1;
             _onMs      = BEEP_SHORT_MS;
             _offMs     = BEEP_GAP_MS;
             break;
-        case AlertPattern::REJECT:
-            _beepsLeft = 3;
+        case AlertPattern::EXIT:
+            _beepsLeft = 2;
             _onMs      = BEEP_SHORT_MS;
             _offMs     = BEEP_GAP_MS;
             break;
