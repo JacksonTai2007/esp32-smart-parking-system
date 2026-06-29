@@ -30,6 +30,12 @@ public:
     // Web 管理：清零累计收入与最近记录（演示收尾兜底）
     void resetStats();
 
+#if ENABLE_SIM_MODE
+    // 演示模式：网页按钮把"模拟车辆驶入/驶离"转发给 SlotManager，
+    // 下一轮 update() 会按真实进出流程识别并计费。
+    void simToggleSlot(uint8_t idx);
+#endif
+
 private:
     void setMessage(const char* msg);
 

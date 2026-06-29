@@ -96,3 +96,11 @@ void ParkingManager::resetStats() {
     }
     setMessage("Stats reset");
 }
+
+#if ENABLE_SIM_MODE
+void ParkingManager::simToggleSlot(uint8_t idx) {
+    if (_slots) {
+        _slots->simToggle(idx);
+    }
+}
+#endif

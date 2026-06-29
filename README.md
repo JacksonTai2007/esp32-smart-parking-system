@@ -41,7 +41,9 @@ ESP32 Smart Parking System — 大学毕业设计项目
 - ✅ 营收统计：累计总收入、停车次数、最近若干条停车记录
 - ✅ OLED SSD1306 实时显示车位地图、累计收入与最近事件
 - ✅ 蜂鸣器提示（入场 1 短响 / 离场 2 短响 / 满位 1 长响）
-- ✅ 本地 Web 仪表盘 + JSON 状态 API + 一键清零收入（STA 失败自动开热点兜底）
+- ✅ 本地 Web 仪表盘（停车场俯视平面图）+ JSON 状态 API + 一键清零收入（STA 失败自动开热点兜底）
+- ✅ 演示 / 模拟模式（`ENABLE_SIM_MODE`）：无红外传感器也能用网页按钮模拟车辆进出，
+  跑通完整计费闭环，便于录制演示视频（详见 [docs/model-build.md](docs/model-build.md)）
 
 ### Phase 2（规划，引脚已预留）
 火焰/烟雾报警与风扇联动（GPIO 27/36/16）、进出场计数与出入口闸机、
@@ -208,6 +210,11 @@ cp WifiCredentials.example.h WifiCredentials.h
 
 见 [docs/demo-script.md](docs/demo-script.md)：6 个场景（启动自检、车辆入场计时、
 车辆离场计费、满位提示、Web 远程查看与清零、复位收尾）+ 现场故障预案。
+
+**时间紧 / 要交演示视频**：把 `config/Settings.h` 的 `ENABLE_SIM_MODE` 置 1 重新烧录，
+网页会出现「车辆驶入 / 驶离」按钮，无需红外传感器即可跑通完整闭环——
+速成外观（A4 / 卡纸纸模型）、录视频脚本与 2 天时间表见
+[docs/model-build.md](docs/model-build.md)。
 
 ## 14. Phase 2 计划
 

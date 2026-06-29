@@ -24,6 +24,8 @@
 //  GET  /api/status       系统状态 JSON
 //  POST /api/reset        清零累计收入与最近记录、并重置在场车辆计时（无认证，
 //                         由 ENABLE_WEB_MANUAL_CONTROL 控制，关闭后返回 403）
+//  POST /api/sim?slot=N   仅 ENABLE_SIM_MODE=1 时存在：翻转第 N 个车位（模拟车辆
+//                         进出），供无传感器演示 / 录视频使用
 //
 // 安全边界：接口无认证，切勿将本设备暴露到公共网络。
 // =====================================================================
@@ -48,6 +50,9 @@ private:
     void handleRoot();
     void handleStatus();
     void handleReset();
+#if ENABLE_SIM_MODE
+    void handleSim();  // POST /api/sim?slot=N：演示模式下翻转车位（模拟车辆进出）
+#endif
 
     NetMode   _mode = NetMode::NET_DISABLED;
     WebServer _server{WEB_SERVER_PORT};
