@@ -1,10 +1,11 @@
 #include "ParkingManager.h"
 
 void ParkingManager::begin(SlotManager* slots, AlertService* alerts,
-                           BillingService* billing) {
+                           BillingService* billing, GateService* gate) {
     _slots   = slots;
     _alerts  = alerts;
     _billing = billing;
+    _gate    = gate;
 
     // 以当前车位状态作为初始基线：启动时已被占用的车位从现在开始计时，
     // 不补发入场提示音，也不会凭空生成历史费用。
@@ -29,6 +30,11 @@ void ParkingManager::update(uint32_t now) {
         }
         _occupied[i] = occupied;
         const uint8_t slotId = i + 1;
+
+        // 车辆进 / 出场都抬杆放行，保持数秒后由 GateService 自动落杆
+        if (_gate != nullptr) {
+            _gate->open(now);
+        }
 
         if (occupied) {
             // 车辆入场：开始计时
@@ -80,6 +86,8 @@ ParkingStatus ParkingManager::status() const {
         st.recent[i] = _billing->recent(i);
     }
 
+    st.gateOpen = (_gate != nullptr) && _gate->isOpen();
+
     strlcpy(st.lastMessage, _message, sizeof(st.lastMessage));
     st.uptimeMs = now;
     return st;
@@ -101,6 +109,22 @@ void ParkingManager::resetStats() {
 void ParkingManager::simToggleSlot(uint8_t idx) {
     if (_slots) {
         _slots->simToggle(idx);
+    }
+}
+#endif
+
+#if ENABLE_GATE
+void ParkingManager::gateOpenManual() {
+    if (_gate) {
+        _gate->open(millis());
+        setMessage("Gate opened (manual)");
+    }
+}
+
+void ParkingManager::gateCloseManual() {
+    if (_gate) {
+        _gate->close();
+        setMessage("Gate closed (manual)");
     }
 }
 #endif

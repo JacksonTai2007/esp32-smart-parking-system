@@ -76,6 +76,12 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .fee { color:var(--warn); }
   .muted { color:var(--dim); }
   .simbtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .gate { font-weight:600; }
+  .gate.open { color:var(--ok); }
+  .gate.closed { color:var(--dim); }
+  .gatebtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .gatebtn.open  { background:#1f6f43; }
+  .gatebtn.close { background:#8a4b1d; }
   .btns { display:grid; grid-template-columns:1fr; gap:10px; margin-top:2px; }
   button { border:none; border-radius:10px; padding:11px 0; font-size:.92rem; cursor:pointer; color:#fff; }
   .simbtn.in  { background:#1f6f43; }
@@ -99,7 +105,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="lot">
     <div class="lothead"><span>🅿 停车场平面图（俯视）</span><span id="lotState" class="lotbadge ok">—</span></div>
     <div class="bays" id="bays"></div>
-    <div class="lane">⟵ 入口 · 出口 ⟶</div>
+    <div class="lane"><span>⟵ 入口 · 出口 ⟶</span><span id="gate" class="gate closed">道闸 —</span></div>
   </div>
 
   <div class="stats">
@@ -112,6 +118,14 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="panel" id="simPanel" style="display:none">
     <h2>演示控制 · 点击模拟车辆进出</h2>
     <div class="simbtns" id="simbtns"></div>
+  </div>
+
+  <div class="panel" id="gatePanel" style="display:none">
+    <h2>道闸控制</h2>
+    <div class="gatebtns">
+      <button class="gatebtn open" onclick="gate('open')">⬆ 开闸</button>
+      <button class="gatebtn close" onclick="gate('close')">⬇ 落闸</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -185,6 +199,18 @@ function render(st) {
     sp.style.display = 'none';
   }
 
+  var g = document.getElementById('gate');
+  var gp = document.getElementById('gatePanel');
+  if (st.gateEnabled) {
+    g.style.display = '';
+    g.textContent = st.gateOpen ? '道闸 ▲ 已抬起' : '道闸 ▼ 已落下';
+    g.className = 'gate ' + (st.gateOpen ? 'open' : 'closed');
+    gp.style.display = '';
+  } else {
+    g.style.display = 'none';
+    gp.style.display = 'none';
+  }
+
   var r = '';
   if (st.recent && st.recent.length) {
     for (var j = 0; j < st.recent.length; j++) {
@@ -214,6 +240,10 @@ function tick() {
 
 function sim(n) {
   fetch('/api/sim?slot=' + n, { method: 'POST' }).then(tick).catch(function () {});
+}
+
+function gate(action) {
+  fetch('/api/gate?action=' + action, { method: 'POST' }).then(tick).catch(function () {});
 }
 
 function resetStats() {
@@ -271,6 +301,9 @@ void WebDashboard::startServer() {
     _server.on("/api/reset", HTTP_POST, [this]() { handleReset(); });
 #if ENABLE_SIM_MODE
     _server.on("/api/sim", HTTP_POST, [this]() { handleSim(); });
+#endif
+#if ENABLE_GATE
+    _server.on("/api/gate", HTTP_POST, [this]() { handleGate(); });
 #endif
     _server.onNotFound([this]() {
         _server.send(404, "application/json", "{\"error\":\"not found\"}");
@@ -381,6 +414,14 @@ void WebDashboard::handleStatus() {
 #else
     json += "false";
 #endif
+    json += ",\"gateEnabled\":";
+#if ENABLE_GATE
+    json += "true";
+#else
+    json += "false";
+#endif
+    json += ",\"gateOpen\":";
+    json += st.gateOpen ? "true" : "false";
     json += ",\"currency\":\"";
     appendJsonEscaped(json, CURRENCY_SYMBOL);
     json += "\",\"recent\":[";
@@ -429,6 +470,27 @@ void WebDashboard::handleSim() {
     }
     _pm->simToggleSlot((uint8_t)(slot - 1));
     _server.send(200, "application/json", "{\"ok\":true}");
+}
+#endif
+
+#if ENABLE_GATE
+// 手动道闸接口：POST /api/gate?action=open|close。与进出场自动抬杆并行；
+// 同样受 ENABLE_WEB_MANUAL_CONTROL 控制（关闭后只读，返回 403）。
+void WebDashboard::handleGate() {
+#if ENABLE_WEB_MANUAL_CONTROL
+    const String action = _server.arg("action");
+    if (action == "open") {
+        _pm->gateOpenManual();
+    } else if (action == "close") {
+        _pm->gateCloseManual();
+    } else {
+        _server.send(400, "application/json", "{\"ok\":false,\"error\":\"action must be open|close\"}");
+        return;
+    }
+    _server.send(200, "application/json", "{\"ok\":true}");
+#else
+    _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
+#endif
 }
 #endif
 

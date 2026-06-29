@@ -75,6 +75,12 @@ void DisplayService::update(uint32_t now, const ParkingStatus& st, const char* n
     _oled->setCursor(0, 39);
     _oled->print(line);
 
+#if ENABLE_GATE
+    snprintf(line, sizeof(line), "Gate: %s", st.gateOpen ? "OPEN" : "closed");
+    _oled->setCursor(0, 48);
+    _oled->print(line);
+#endif
+
     snprintf(line, sizeof(line), "%.21s", netInfo != nullptr ? netInfo : "");
     _oled->setCursor(0, 57);
     _oled->print(line);

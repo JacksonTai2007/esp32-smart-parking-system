@@ -10,9 +10,10 @@
 
 ## 本期方案
 
-红外车位识别 + 车位管理 + 按时长计费（无 RFID、无闸机）：车辆进出**仅**由
+红外车位识别 + 车位管理 + 按时长计费 + SG90 出入口道闸（无 RFID）：车辆进出由
 每个车位的红外避障传感器判定——车位由空闲变占用即识别为车辆入场并开始计时，
-由占用变空闲即识别为离场并按停留时长结算费用。计费**仅为本地计算与展示**，
+由占用变空闲即识别为离场并按停留时长结算费用；进 / 出场都联动道闸自动抬杆，
+保持数秒后自动落杆（另有网页手动开 / 落）。计费**仅为本地计算与展示**，
 不接任何真实支付。
 
 ## 模块职责
@@ -23,6 +24,7 @@
 | `ParkingManager` | ParkingManager.h/.cpp | 主业务：识别车辆进出、触发计费、产生状态快照 |
 | `BillingService` | BillingService.h/.cpp | 按停留时长计费（整数「分」运算）、营收/停车次数/最近记录统计 |
 | `AlertService` | AlertService.h/.cpp | 蜂鸣器节奏（入场 1 短 / 离场 2 短 / 满位 1 长 / 报警循环预留） |
+| `GateService` | GateService.h/.cpp | 出入口道闸 SG90（LEDC PWM 驱动，非阻塞抬杆 + 定时自动落杆） |
 | `DisplayService` | DisplayService.h/.cpp | OLED SSD1306 状态显示 |
 | `WebDashboard` | WebDashboard.h/.cpp | Wi-Fi（STA + AP 兜底）、网页仪表盘、JSON API、清零收入接口 |
 | `ParkingTypes` | ParkingTypes.h | 共享枚举（AlertPattern）、车位/停车记录/状态快照结构、金额与时长格式化助手 |
@@ -34,9 +36,10 @@ flowchart LR
     SLOTS[SlotManager<br/>车位占用/满位] --> PM[ParkingManager]
     PM --> BILL[BillingService<br/>按时长计费/营收]
     PM --> ALERT[AlertService<br/>蜂鸣器]
+    PM --> GATE[GateService<br/>SG90 道闸]
     PM -- "status() 快照" --> OLED[DisplayService]
     PM -- "status() 快照" --> WEB[WebDashboard]
-    WEB -- "清零累计收入" --> PM
+    WEB -- "清零累计收入 / 开闸·落闸" --> PM
 ```
 
 输入只产出事实（车位占用状态），决策集中在 `ParkingManager`：它跟踪每个车位的
@@ -63,6 +66,8 @@ stateDiagram-v2
   （长响 1 次），消息 `P2 in - Parking FULL`
 - **占用 → 空闲**：以 `now - _enterMs[i]` 为停留时长调用 `BillingService::recordSession`
   结算费用，蜂鸣器 `EXIT`（短响 2 次），消息形如 `P2 left 03:12  1.50`
+- **进 / 出场都触发道闸**：`GateService::open()` 抬杆放行，`GATE_OPEN_HOLD_MS` 后由
+  `GateService::update()` 自动落杆；网页 `/api/gate` 另可手动开 / 落（ENABLE_GATE 控制）
 
 ## 计费模型
 
@@ -89,6 +94,7 @@ stateDiagram-v2
 | `totalRevenueCents` | 自启动/重置以来累计收入（分） |
 | `sessionCount` | 已结算的停车次数 |
 | `recent[]` / `recentCount` | 最近若干条停车记录（车位号 / 时长 / 费用），`recent[0]` 最新 |
+| `gateOpen` | 出入口道闸是否抬起（ENABLE_GATE=0 时恒为 false） |
 | `lastMessage` | 最近一条系统事件消息（纯 ASCII，OLED 与 Web 共用） |
 | `uptimeMs` | 运行时间（毫秒） |
 
@@ -99,7 +105,7 @@ loop():
   now = millis()
   1. 输入采集   slotManager.update          # 红外车位去抖
   2. 业务决策   parkingManager.update       # 识别进出 + 触发计费
-  3. 执行输出   alertService.update / displayService.update / webDashboard.update
+  3. 执行输出   alertService.update / gateService.update / displayService.update / webDashboard.update
 ```
 
 全程无阻塞点：车位采集只是 `digitalRead` + 时间比较，计费是纯整数运算，

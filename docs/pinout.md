@@ -3,14 +3,16 @@
 代码中的唯一权威定义在 `firmware/parking-system/config/Pins.h`，
 本表与其保持一致；修改任意一处必须同步另一处和 README。
 
-> 本期方案（简化版）：去掉 RFID 刷卡、SG90 闸机、HC-SR04 入口超声波，
-> 仅靠红外车位传感器做车辆识别 + 车位管理 + 按时长计费。
+> 本期方案：红外车位传感器做车辆识别 + 车位管理 + 按时长计费，并加入 SG90
+> 出入口道闸（进出场自动抬杆 + 网页手动开 / 落，可由 `ENABLE_GATE` 关闭）。
+> RFID 刷卡、HC-SR04 入口超声波仍未纳入。
 
 | 功能 | 模块 | ESP32 引脚 | 备注 |
 | --- | --- | --- | --- |
 | I2C SDA | OLED SSD1306 | GPIO 21 | I2C |
 | I2C SCL | OLED SSD1306 | GPIO 22 | I2C |
 | 蜂鸣器 | Buzzer | GPIO 14 | 数字输出 |
+| 出入口道闸 | SG90 舵机 | GPIO 13 | PWM 输出（ESP32 LEDC 驱动） |
 | 车位 1 | 红外传感器 | GPIO 32 | 数字输入 |
 | 车位 2 | 红外传感器 | GPIO 33 | 数字输入 |
 | 车位 3 | 红外传感器 | GPIO 34 | 输入专用 |
@@ -39,3 +41,9 @@
    按顺序占用 GPIO 32→33→34 引脚。
 7. GPIO 36 为 ADC1 通道，Phase 2 的 MQ 烟雾模块 AO 输出接它做模拟采样；
    使用 Wi-Fi 时 ADC2 不可用，因此模拟输入只规划在 ADC1 引脚上。
+8. **SG90 道闸舵机**：信号线（橙）接 GPIO 13，由 ESP32 LEDC 生成 50Hz PWM 驱动
+   （不需第三方库）。舵机红线接 5V、棕线接 GND；多个/大舵机抖动或复位时，
+   改用独立 5V 供电并与 ESP32 **共地**。开 / 合角度与抬杆保持时长在
+   `config/Settings.h`（`GATE_SERVO_OPEN_DEG` / `GATE_SERVO_CLOSED_DEG` /
+   `GATE_OPEN_HOLD_MS`）；方向相反就把两个角度对调。不接舵机也能运行，
+   网页 / OLED 仍显示道闸状态。
