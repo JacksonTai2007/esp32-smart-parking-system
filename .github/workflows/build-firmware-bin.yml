@@ -1,0 +1,80 @@
+# =====================================================================
+# 固件 .bin 产物构建工作流
+#
+# 与 arduino-compile.yml（只验证可编译）互补：本工作流把编译产物
+# （bootloader / partitions / app / merged 合并镜像）作为 Artifact 上传，
+# 供本地没有 Arduino 环境的场景直接下载烧录：
+#   - merged.bin  → Chrome 打开 https://web.esphome.io 连接串口，烧录地址 0x0
+#   - 或 esptool.py write_flash 0x0 <merged.bin>
+#
+# 两个构建变体：
+#   default → Settings.h 原样（ENABLE_SIM_MODE=0，真机红外驱动）
+#   sim     → ENABLE_SIM_MODE=1（网页按钮模拟车辆进出，录演示视频用）
+# =====================================================================
+name: Build Firmware Binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/urgent-afternoon-deadline-cchttz]
+
+env:
+  FQBN: "esp32:esp32:esp32"
+  SKETCH: "firmware/parking-system"
+  ESP32_BOARD_URL: "https://espressif.github.io/arduino-esp32/package_esp32_index.json"
+  ESP32_CORE: "esp32:esp32"
+
+jobs:
+  build:
+    name: Build ${{ matrix.variant }} firmware
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [sim, default]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      # 与 arduino-compile.yml 共用同一份缓存 key，命中后免去 ESP32 core 下载
+      - name: Cache Arduino cores and libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-${{ runner.os }}-${{ hashFiles('.github/workflows/arduino-compile.yml') }}
+
+      - name: Install ESP32 board core
+        run: |
+          arduino-cli core update-index --additional-urls "$ESP32_BOARD_URL"
+          arduino-cli core install "$ESP32_CORE" --additional-urls "$ESP32_BOARD_URL"
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit GFX Library" "Adafruit SSD1306"
+
+      - name: Enable simulation mode (sim variant only)
+        if: matrix.variant == 'sim'
+        run: |
+          sed -i 's/^#define ENABLE_SIM_MODE      0/#define ENABLE_SIM_MODE      1/' \
+            "$SKETCH/config/Settings.h"
+          grep -n "ENABLE_SIM_MODE" "$SKETCH/config/Settings.h"
+
+      - name: Compile and export binaries
+        run: |
+          arduino-cli compile --fqbn "$FQBN" --warnings default \
+            --output-dir "build-out" "$SKETCH"
+          ls -la build-out
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parking-firmware-${{ matrix.variant }}
+          path: |
+            build-out/*.bin
+            build-out/*.csv
+          retention-days: 14
