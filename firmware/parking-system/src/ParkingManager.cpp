@@ -29,7 +29,7 @@ void ParkingManager::setMessage(const char* msg) {
 }
 
 void ParkingManager::update(uint32_t now) {
-    updateFireAlarm(now);
+    updateSafety(now);
     updateEntry(now);
 
     for (uint8_t i = 0; i < TOTAL_PARKING_SLOTS; ++i) {
@@ -76,14 +76,29 @@ void ParkingManager::update(uint32_t now) {
     }
 }
 
-// 火警状态由 SafetyService 判定（确认/解除时长、蜂鸣、风扇都在那边）；
+// 火警/降雨/碰撞状态由 SafetyService 判定（确认/解除、蜂鸣、风扇都在那边）；
 // 这里只做业务联动：状态翻转时同步系统消息。
-void ParkingManager::updateFireAlarm(uint32_t now) {
+void ParkingManager::updateSafety(uint32_t now) {
     (void)now;
-    const bool alarm = (_safety != nullptr) && _safety->fireAlarm();
-    if (alarm != _fireAlarmPrev) {
-        _fireAlarmPrev = alarm;
-        setMessage(alarm ? "FIRE ALARM - fan ON" : "Fire cleared");
+    if (_safety == nullptr) {
+        return;
+    }
+    const bool fire = _safety->fireAlarm();
+    if (fire != _fireAlarmPrev) {
+        _fireAlarmPrev = fire;
+        setMessage(fire ? "FIRE ALARM - fan ON" : "Fire cleared");
+    }
+    const bool impact = _safety->impactAlert();
+    if (impact != _impactAlertPrev) {
+        _impactAlertPrev = impact;
+        if (impact) {
+            setMessage("Impact detected!");
+        }
+    }
+    const bool rain = _safety->rainAlert();
+    if (rain != _rainAlertPrev) {
+        _rainAlertPrev = rain;
+        setMessage(rain ? "Rain detected" : "Rain stopped");
     }
 }
 
@@ -127,6 +142,16 @@ void ParkingManager::updateEntry(uint32_t now) {
             triggerEntry(now);
         }
     }
+#if ENABLE_SIM_MODE
+    // 演示模式：分配数秒后模拟"车辆按引导驶入被分配车位"，一次触发看完整链路；
+    // 下一轮车位扫描会照常识别入场、清除引导并开始计时
+    if (_assignedSlot >= 0 && SIM_AUTO_PARK_MS > 0 &&
+        now - _assignedAtMs >= SIM_AUTO_PARK_MS &&
+        !_slots->slotOccupied((uint8_t)_assignedSlot)) {
+        LOG_PRINTF("[PM] sim auto-park -> P%d\n", _assignedSlot + 1);
+        _slots->simToggle((uint8_t)_assignedSlot);
+    }
+#endif
     if (_assignedSlot >= 0 && now - _assignedAtMs >= ENTRY_ASSIGN_TIMEOUT_MS) {
         _assignedSlot = -1;  // 超时未停入，引导作废
         setMessage("Entry guide expired");
@@ -156,7 +181,9 @@ ParkingStatus ParkingManager::status() const {
         st.recent[i] = _billing->recent(i);
     }
 
-    st.fireAlarm = (_safety != nullptr) && _safety->fireAlarm();
+    st.fireAlarm   = (_safety != nullptr) && _safety->fireAlarm();
+    st.rainAlert   = (_safety != nullptr) && _safety->rainAlert();
+    st.impactAlert = (_safety != nullptr) && _safety->impactAlert();
 #if ENABLE_ENTRY_GUIDE
     st.assignedSlot = (uint8_t)(_assignedSlot + 1);  // 0 = 无分配
 #endif

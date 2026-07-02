@@ -40,6 +40,11 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   @keyframes fireblink { 50% { opacity:.55; } }
   .guidebanner { background:#2c6df2; color:#fff; font-weight:700; text-align:center;
                  border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .rainbanner { background:#8a6d1d; color:#fff; font-weight:700; text-align:center;
+                border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .impactbanner { background:#b3541e; color:#fff; font-weight:700; text-align:center;
+                  border-radius:12px; padding:10px 12px; margin-bottom:12px;
+                  animation:fireblink 1s step-start infinite; }
   .bay.assigned { border-color:var(--acc); border-style:solid;
                   box-shadow:0 0 0 2px rgba(77,163,255,.35); }
   .bay.assigned .binfo { color:var(--acc); font-weight:600; }
@@ -101,6 +106,8 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="sub">Smart Parking System · 车位识别 + 计费 · 毕业设计演示</div>
 
   <div id="fireBanner" class="firebanner" style="display:none">🔥 火灾报警 · 风扇已自动启动</div>
+  <div id="impactBanner" class="impactbanner" style="display:none">⚠ 检测到异常震动 · 疑似车辆碰撞</div>
+  <div id="rainBanner" class="rainbanner" style="display:none">🌧 检测到降雨 · 露天车位请注意</div>
   <div id="guideBanner" class="guidebanner" style="display:none"></div>
 
   <div class="stats">
@@ -215,6 +222,8 @@ function render(st) {
   document.getElementById('recent').innerHTML = r;
 
   document.getElementById('fireBanner').style.display = st.fireAlarm ? '' : 'none';
+  document.getElementById('impactBanner').style.display = st.impactAlert ? '' : 'none';
+  document.getElementById('rainBanner').style.display = st.rainAlert ? '' : 'none';
   var gb = document.getElementById('guideBanner');
   if (st.assignedSlot > 0) {
     gb.style.display = '';
@@ -416,6 +425,10 @@ void WebDashboard::handleStatus() {
 #endif
     json += ",\"fireAlarm\":";
     json += st.fireAlarm ? "true" : "false";
+    json += ",\"rainAlert\":";
+    json += st.rainAlert ? "true" : "false";
+    json += ",\"impactAlert\":";
+    json += st.impactAlert ? "true" : "false";
     json += ",\"entryGuide\":";
 #if ENABLE_ENTRY_GUIDE
     json += "true";

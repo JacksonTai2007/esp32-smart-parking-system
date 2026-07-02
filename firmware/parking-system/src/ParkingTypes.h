@@ -46,6 +46,8 @@ struct ParkingStatus {
     uint8_t        recentCount = 0;
 
     bool     fireAlarm       = false; // 火灾报警是否激活（ENABLE_FIRE_ALARM=0 时恒为 false）
+    bool     rainAlert       = false; // 降雨提示是否激活（ENABLE_RAIN_ALERT=0 时恒为 false）
+    bool     impactAlert     = false; // 碰撞告警是否激活（ENABLE_IMPACT_ALERT=0 时恒为 false）
     uint8_t  assignedSlot    = 0;     // 引导中的分配车位号（1 起），0 = 无分配
 
     char     lastMessage[48] = "System ready";

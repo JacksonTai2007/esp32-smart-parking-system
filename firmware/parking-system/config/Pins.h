@@ -37,5 +37,11 @@ constexpr uint8_t PIN_FAN_CONTROL  = 16;
 // 选 GPIO 25：普通 IO，带内部上/下拉，未接模块时不会误触发。
 constexpr uint8_t PIN_ENTRY_TOUCH = 25;
 
+// ---- 降雨提示（雨滴传感器 DO，数字输入；露天车位提醒）----
+constexpr uint8_t PIN_RAIN_SENSOR = 17;
+
+// ---- 碰撞告警（震动传感器 DO，数字输入；车辆刮蹭/撞击检测）----
+constexpr uint8_t PIN_VIBRATION_SENSOR = 18;
+
 // ---- Phase 2 预留（本期不接线，仅占位防止引脚冲突）----
 constexpr uint8_t PIN_SMOKE_SENSOR = 36;  // MQ 烟雾模块 AO，模拟输入（ADC1，输入专用）

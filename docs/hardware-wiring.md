@@ -86,6 +86,20 @@ USB 5V ──► ESP32 DevKit（板载稳压出 3.3V）
 
 - 检测到火焰（确认 `FIRE_CONFIRM_MS`）→ 蜂鸣循环警报 + 风扇自动启动 +
   网页红色警报横幅；火焰消失 `FIRE_CLEAR_MS` 后自动解除。
+
+## 5b. 雨滴 + 震动传感器（降雨提示 / 碰撞告警）
+
+| 接线 | 接到 |
+| --- | --- |
+| 雨滴模块 DO / VCC / GND | GPIO 17 / 3.3V / GND |
+| 震动模块 DO / VCC / GND | GPIO 18 / 3.3V / GND |
+
+- 雨滴感应板沾水 → 网页黄色「检测到降雨」横幅，干燥后自动解除（不响铃）。
+- 震动模块被敲击/晃动 → 蜂鸣 1 长响 + 网页橙色「疑似车辆碰撞」横幅，
+  数秒自动消失；连续震动有冷却时间防刷屏。
+- 两个模块都是比较器输出（默认触发 LOW），电位器可调灵敏度；触发电平在
+  `Settings.h`（`RAIN_ACTIVE_LEVEL` / `IMPACT_ACTIVE_LEVEL`）。
+- 不需要时置 `ENABLE_RAIN_ALERT 0` / `ENABLE_IMPACT_ALERT 0`。
 - 课堂演示：红外遥控器对准火焰传感器按键即可安全触发，无需明火。
 - 继电器为低电平吸合时把 `FAN_ACTIVE_LEVEL` 改 `LOW`；
   不需要该功能时置 `ENABLE_FIRE_ALARM 0`。
