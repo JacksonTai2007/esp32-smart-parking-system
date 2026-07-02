@@ -87,6 +87,7 @@
   .simbtn.in  { background:#1f6f43; }
   .simbtn.out { background:#8a4b1d; }
   .simbtn.entry { grid-column:1 / -1; background:#2c6df2; }
+  .ctrlbtn { background:#2c6df2; font-weight:600; }
   #btnReset { background:#33415e; }
   button:active { opacity:.75; }
   .foot { color:var(--dim); font-size:.72rem; text-align:center; margin-top:14px; }
@@ -120,6 +121,11 @@
     <div class="stat" id="stRate"><b>-</b><span>计费单价</span></div>
   </div>
   <div class="rule" id="rule">—</div>
+
+  <div class="panel" id="ctrlPanel" style="display:none">
+    <h2>远程控制 · 演示与真机通用</h2>
+    <div class="btns"><button class="ctrlbtn" onclick="entry()">🚘 车辆到达入口 · 自动分配车位</button></div>
+  </div>
 
   <div class="panel" id="simPanel" style="display:none">
     <h2>演示控制 · 点击模拟车辆进出</h2>
@@ -183,14 +189,13 @@ function render(st) {
   }
   document.getElementById('bays').innerHTML = html;
 
+  document.getElementById('ctrlPanel').style.display = st.entryGuide ? '' : 'none';
+
   var sp = document.getElementById('simPanel');
   document.getElementById('simTag').style.display = st.simMode ? '' : 'none';
   if (st.simMode) {
     sp.style.display = '';
     var sb = '';
-    if (st.entryGuide) {
-      sb += '<button class="simbtn entry" onclick="entry()">🚘 车辆到达入口 · 自动放行并分配车位</button>';
-    }
     for (var k = 0; k < st.slots.length; k++) {
       var o = st.slots[k].occupied;
       sb += '<button class="simbtn ' + (o ? 'out' : 'in') + '" onclick="sim(' + (k + 1) + ')">' +
