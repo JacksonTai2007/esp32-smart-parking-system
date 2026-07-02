@@ -14,7 +14,14 @@ void SlotManager::begin() {
                TOTAL_PARKING_SLOTS);
 #else
     for (uint8_t i = 0; i < TOTAL_PARKING_SLOTS; ++i) {
-        pinMode(PIN_SLOT_SENSOR[i], INPUT);
+        // 内部上/下拉把未接线的引脚稳定在"空闲"电平，避免悬空误判"全满"；
+        // GPIO 34/35 为输入专用、无内部拉，必须接模块（默认 2 车位不受影响）
+        if (PIN_SLOT_SENSOR[i] < 34) {
+            pinMode(PIN_SLOT_SENSOR[i],
+                    SLOT_OCCUPIED_LEVEL == LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
+        } else {
+            pinMode(PIN_SLOT_SENSOR[i], INPUT);
+        }
         _slots[i].id           = i + 1;
         _rawLevel[i]           = digitalRead(PIN_SLOT_SENSOR[i]);
         _rawSinceMs[i]         = now;
