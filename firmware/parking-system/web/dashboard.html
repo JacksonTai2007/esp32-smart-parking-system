@@ -13,27 +13,52 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ESP32 智能停车场</title>
 <style>
-  :root { --bg:#10141c; --card:#1b2230; --line:#2c3650; --txt:#e8edf6; --dim:#8b97ad;
-          --ok:#3ddc84; --warn:#ffb648; --bad:#ff5d5d; --acc:#4da3ff; }
+  :root { --bg:#0e1218; --card:#1b2230; --line:#2c3650; --txt:#e8edf6; --dim:#8b97ad;
+          --ok:#3ddc84; --warn:#ffb648; --bad:#ff5d5d; --acc:#4da3ff;
+          --road:#23272e; --paint:#c7cfdd; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--bg); color:var(--txt); font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+  body { background:var(--bg); color:var(--txt);
+         font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
          max-width:680px; margin:0 auto; padding:16px; }
   h1 { font-size:1.25rem; margin-bottom:2px; }
   .sub { color:var(--dim); font-size:.8rem; margin-bottom:14px; }
   .badge { float:right; font-size:.75rem; padding:3px 10px; border-radius:99px; background:var(--card); }
   .badge.on { color:var(--ok); } .badge.off { color:var(--bad); }
+  .tag { display:inline-block; font-size:.7rem; padding:1px 8px; border-radius:99px;
+         background:#3a2d12; color:var(--warn); margin-left:6px; vertical-align:middle; }
   .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center; }
   .stat b { display:block; font-size:1.8rem; }
   .stat span { color:var(--dim); font-size:.78rem; }
   #stFree b { color:var(--ok); }
   #stRevenue b { color:var(--warn); }
-  .slots { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-  .slot { border-radius:12px; padding:14px 6px; text-align:center; font-weight:600;
-          background:var(--card); border:1px solid var(--line); }
-  .slot.free { border-color:var(--ok); color:var(--ok); }
-  .slot.occ  { border-color:var(--bad); color:var(--bad); }
-  .slot small { display:block; font-weight:400; font-size:.72rem; margin-top:4px; color:var(--dim); }
+
+  /* 停车场俯视平面图 */
+  .lot { background:var(--road); border:1px solid var(--line); border-radius:14px;
+         padding:14px 14px 12px; margin-bottom:12px;
+         background-image:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.12)); }
+  .lothead { display:flex; justify-content:space-between; align-items:center;
+             color:var(--dim); font-size:.82rem; margin-bottom:10px; }
+  .lotbadge { font-size:.75rem; padding:2px 10px; border-radius:99px; font-weight:600; }
+  .lotbadge.ok { color:var(--ok); background:rgba(61,220,132,.12); }
+  .lotbadge.full { color:#fff; background:var(--bad); }
+  .bays { display:grid; gap:8px; }
+  .bay { position:relative; min-height:104px; border:2px solid var(--paint); border-top:none;
+         border-radius:0 0 7px 7px; display:flex; flex-direction:column;
+         align-items:center; justify-content:space-between; padding:7px 4px;
+         background:rgba(0,0,0,.18); transition:.15s; }
+  .bay.free { border-color:#56627c; border-style:dashed; }
+  .bay.occ  { border-color:var(--acc); background:rgba(77,163,255,.12); }
+  .bay .bno { align-self:flex-start; font-size:.74rem; color:var(--dim); font-weight:600; }
+  .bay.occ .bno { color:var(--acc); }
+  .bay .car { font-size:2.1rem; line-height:1; }
+  .bay .binfo { font-size:.76rem; color:var(--dim); }
+  .bay.occ .binfo { color:var(--warn); font-weight:600; }
+  .lane { margin-top:8px; height:30px; border-top:2px dashed #d8b13a; border-radius:0 0 8px 8px;
+          background:#15181d; display:flex; align-items:center; justify-content:center;
+          color:var(--dim); font-size:.74rem; letter-spacing:1px; }
+
+  .rule { color:var(--dim); font-size:.76rem; text-align:center; margin:-4px 0 12px; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:12px;
            padding:12px 14px; margin-bottom:12px; font-size:.9rem; }
   .panel h2 { font-size:.85rem; color:var(--dim); font-weight:600; margin-bottom:6px; }
@@ -42,8 +67,17 @@
   .row .k { color:var(--dim); }
   .fee { color:var(--warn); }
   .muted { color:var(--dim); }
-  .btns { display:grid; grid-template-columns:1fr; gap:10px; }
-  button { border:none; border-radius:10px; padding:12px 0; font-size:.95rem; cursor:pointer; color:#fff; }
+  .simbtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .gate { font-weight:600; }
+  .gate.open { color:var(--ok); }
+  .gate.closed { color:var(--dim); }
+  .gatebtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .gatebtn.open  { background:#1f6f43; }
+  .gatebtn.close { background:#8a4b1d; }
+  .btns { display:grid; grid-template-columns:1fr; gap:10px; margin-top:2px; }
+  button { border:none; border-radius:10px; padding:11px 0; font-size:.92rem; cursor:pointer; color:#fff; }
+  .simbtn.in  { background:#1f6f43; }
+  .simbtn.out { background:#8a4b1d; }
   #btnReset { background:#33415e; }
   button:active { opacity:.75; }
   .foot { color:var(--dim); font-size:.72rem; text-align:center; margin-top:14px; }
@@ -51,7 +85,7 @@
 </head>
 <body>
   <span id="conn" class="badge off">连接中...</span>
-  <h1>ESP32 智能停车场</h1>
+  <h1>ESP32 智能停车场<span id="simTag" class="tag" style="display:none">模拟模式</span></h1>
   <div class="sub">Smart Parking System · 车位识别 + 计费 · 毕业设计演示</div>
 
   <div class="stats">
@@ -60,12 +94,30 @@
     <div class="stat" id="stFree"><b>-</b><span>剩余车位</span></div>
   </div>
 
-  <div class="slots" id="slots"></div>
+  <div class="lot">
+    <div class="lothead"><span>🅿 停车场平面图（俯视）</span><span id="lotState" class="lotbadge ok">—</span></div>
+    <div class="bays" id="bays"></div>
+    <div class="lane"><span>⟵ 入口 · 出口 ⟶</span><span id="gate" class="gate closed">道闸 —</span></div>
+  </div>
 
   <div class="stats">
     <div class="stat" id="stRevenue"><b>-</b><span>累计收入</span></div>
     <div class="stat" id="stCount"><b>-</b><span>停车次数</span></div>
     <div class="stat" id="stRate"><b>-</b><span>计费单价</span></div>
+  </div>
+  <div class="rule" id="rule">—</div>
+
+  <div class="panel" id="simPanel" style="display:none">
+    <h2>演示控制 · 点击模拟车辆进出</h2>
+    <div class="simbtns" id="simbtns"></div>
+  </div>
+
+  <div class="panel" id="gatePanel" style="display:none">
+    <h2>道闸控制</h2>
+    <div class="gatebtns">
+      <button class="gatebtn open" onclick="gate('open')">⬆ 开闸</button>
+      <button class="gatebtn close" onclick="gate('close')">⬇ 落闸</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -79,7 +131,7 @@
   </div>
 
   <div class="btns">
-    <button id="btnReset" onclick="reset()">清零累计收入</button>
+    <button id="btnReset" onclick="resetStats()">清零累计收入</button>
   </div>
 
   <div class="foot">每 1 秒自动刷新 · GET /api/status</div>
@@ -101,15 +153,55 @@ function render(st) {
   document.querySelector('#stCount b').textContent   = st.sessionCount;
   document.querySelector('#stRate b').textContent    =
     fmtMoney(st.ratePerMinCents, st.currency) + '/min';
+  document.getElementById('rule').textContent =
+    '前 ' + st.freePeriodSec + ' 秒免费 · 超出按分钟向上取整 × ' +
+    fmtMoney(st.ratePerMinCents, st.currency);
 
+  var full = st.freeSlots === 0;
+  var lb = document.getElementById('lotState');
+  lb.textContent = full ? '车位已满' : ('剩余 ' + st.freeSlots + ' / ' + st.totalSlots);
+  lb.className = 'lotbadge ' + (full ? 'full' : 'ok');
+
+  document.getElementById('bays').style.gridTemplateColumns =
+    'repeat(' + st.slots.length + ',1fr)';
   var html = '';
   for (var i = 0; i < st.slots.length; i++) {
     var s = st.slots[i];
-    var info = s.occupied ? fmtDur(s.durationMs) : '空闲';
-    html += '<div class="slot ' + (s.occupied ? 'occ' : 'free') + '">P' + (i + 1) +
-            '<small>' + info + '</small></div>';
+    var occ = s.occupied;
+    html += '<div class="bay ' + (occ ? 'occ' : 'free') + '">' +
+            '<span class="bno">P' + (i + 1) + '</span>' +
+            '<span class="car">' + (occ ? '🚗' : '') + '</span>' +
+            '<span class="binfo">' + (occ ? fmtDur(s.durationMs) : '空闲') + '</span>' +
+            '</div>';
   }
-  document.getElementById('slots').innerHTML = html;
+  document.getElementById('bays').innerHTML = html;
+
+  var sp = document.getElementById('simPanel');
+  document.getElementById('simTag').style.display = st.simMode ? '' : 'none';
+  if (st.simMode) {
+    sp.style.display = '';
+    var sb = '';
+    for (var k = 0; k < st.slots.length; k++) {
+      var o = st.slots[k].occupied;
+      sb += '<button class="simbtn ' + (o ? 'out' : 'in') + '" onclick="sim(' + (k + 1) + ')">' +
+            'P' + (k + 1) + (o ? ' 🚙 驶离' : ' 🚗 驶入') + '</button>';
+    }
+    document.getElementById('simbtns').innerHTML = sb;
+  } else {
+    sp.style.display = 'none';
+  }
+
+  var g = document.getElementById('gate');
+  var gp = document.getElementById('gatePanel');
+  if (st.gateEnabled) {
+    g.style.display = '';
+    g.textContent = st.gateOpen ? '道闸 ▲ 已抬起' : '道闸 ▼ 已落下';
+    g.className = 'gate ' + (st.gateOpen ? 'open' : 'closed');
+    gp.style.display = '';
+  } else {
+    g.style.display = 'none';
+    gp.style.display = 'none';
+  }
 
   var r = '';
   if (st.recent && st.recent.length) {
@@ -138,7 +230,15 @@ function tick() {
   });
 }
 
-function reset() {
+function sim(n) {
+  fetch('/api/sim?slot=' + n, { method: 'POST' }).then(tick).catch(function () {});
+}
+
+function gate(action) {
+  fetch('/api/gate?action=' + action, { method: 'POST' }).then(tick).catch(function () {});
+}
+
+function resetStats() {
   if (!confirm('确定清零累计收入与最近记录？')) { return; }
   fetch('/api/reset', { method: 'POST' }).then(tick).catch(function () {});
 }

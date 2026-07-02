@@ -45,6 +45,8 @@ struct ParkingStatus {
     ParkingSession recent[MAX_SESSION_LOG];  // 最近若干条记录，recent[0] 最新
     uint8_t        recentCount = 0;
 
+    bool     gateOpen        = false; // 出入口道闸是否抬起（ENABLE_GATE=0 时恒为 false）
+
     char     lastMessage[48] = "System ready";
     uint32_t uptimeMs        = 0;
 };

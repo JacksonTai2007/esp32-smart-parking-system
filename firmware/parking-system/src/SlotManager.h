@@ -26,8 +26,17 @@ public:
     // idx 为 0..TOTAL_PARKING_SLOTS-1，越界返回 false
     bool slotOccupied(uint8_t idx) const;
 
+#if ENABLE_SIM_MODE
+    // 演示模式：翻转某个车位的占用状态（模拟车辆驶入 / 驶离）。
+    // 翻转后下一轮 ParkingManager::update 会像真实传感器一样识别进出并计费。
+    void simToggle(uint8_t idx);
+#endif
+
 private:
     ParkingSlot _slots[MAX_PARKING_SLOTS];
     int         _rawLevel[MAX_PARKING_SLOTS]   = {0};  // 最近一次原始电平
     uint32_t    _rawSinceMs[MAX_PARKING_SLOTS] = {0};  // 原始电平保持起始时刻
+#if ENABLE_SIM_MODE
+    bool        _simOccupied[MAX_PARKING_SLOTS] = {false};  // 演示模式下的车位占用
+#endif
 };
