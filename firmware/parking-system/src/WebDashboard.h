@@ -26,9 +26,9 @@
 //                         由 ENABLE_WEB_MANUAL_CONTROL 控制，关闭后返回 403）
 //  POST /api/sim?slot=N   仅 ENABLE_SIM_MODE=1 时存在：翻转第 N 个车位（模拟车辆
 //                         进出），供无传感器演示 / 录视频使用
-//  POST /api/gate?action=open|close
-//                         仅 ENABLE_GATE=1 时存在：手动开闸 / 落闸（同样受
-//                         ENABLE_WEB_MANUAL_CONTROL 控制，关闭后返回 403）
+//  POST /api/entry        仅 ENABLE_ENTRY_GUIDE=1 时存在：触发"车辆到达入口"
+//                         （自动分配车位并引导；满位拒绝。同样受
+//                         ENABLE_WEB_MANUAL_CONTROL 控制）
 //
 // 安全边界：接口无认证，切勿将本设备暴露到公共网络。
 // =====================================================================
@@ -56,8 +56,8 @@ private:
 #if ENABLE_SIM_MODE
     void handleSim();  // POST /api/sim?slot=N：演示模式下翻转车位（模拟车辆进出）
 #endif
-#if ENABLE_GATE
-    void handleGate();  // POST /api/gate?action=open|close：手动开闸 / 落闸
+#if ENABLE_ENTRY_GUIDE
+    void handleEntry();  // POST /api/entry：智能入场（分配车位引导）
 #endif
 
     NetMode   _mode = NetMode::NET_DISABLED;

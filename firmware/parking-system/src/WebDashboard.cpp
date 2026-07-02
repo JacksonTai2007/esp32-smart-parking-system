@@ -34,6 +34,15 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .badge.on { color:var(--ok); } .badge.off { color:var(--bad); }
   .tag { display:inline-block; font-size:.7rem; padding:1px 8px; border-radius:99px;
          background:#3a2d12; color:var(--warn); margin-left:6px; vertical-align:middle; }
+  .firebanner { background:var(--bad); color:#fff; font-weight:700; text-align:center;
+                border-radius:12px; padding:10px 12px; margin-bottom:12px;
+                animation:fireblink 1s step-start infinite; }
+  @keyframes fireblink { 50% { opacity:.55; } }
+  .guidebanner { background:#2c6df2; color:#fff; font-weight:700; text-align:center;
+                 border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .bay.assigned { border-color:var(--acc); border-style:solid;
+                  box-shadow:0 0 0 2px rgba(77,163,255,.35); }
+  .bay.assigned .binfo { color:var(--acc); font-weight:600; }
   .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center; }
   .stat b { display:block; font-size:1.8rem; }
@@ -76,16 +85,11 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .fee { color:var(--warn); }
   .muted { color:var(--dim); }
   .simbtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-  .gate { font-weight:600; }
-  .gate.open { color:var(--ok); }
-  .gate.closed { color:var(--dim); }
-  .gatebtns { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-  .gatebtn.open  { background:#1f6f43; }
-  .gatebtn.close { background:#8a4b1d; }
   .btns { display:grid; grid-template-columns:1fr; gap:10px; margin-top:2px; }
   button { border:none; border-radius:10px; padding:11px 0; font-size:.92rem; cursor:pointer; color:#fff; }
   .simbtn.in  { background:#1f6f43; }
   .simbtn.out { background:#8a4b1d; }
+  .simbtn.entry { grid-column:1 / -1; background:#2c6df2; }
   #btnReset { background:#33415e; }
   button:active { opacity:.75; }
   .foot { color:var(--dim); font-size:.72rem; text-align:center; margin-top:14px; }
@@ -96,6 +100,9 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <h1>ESP32 智能停车场<span id="simTag" class="tag" style="display:none">模拟模式</span></h1>
   <div class="sub">Smart Parking System · 车位识别 + 计费 · 毕业设计演示</div>
 
+  <div id="fireBanner" class="firebanner" style="display:none">🔥 火灾报警 · 风扇已自动启动</div>
+  <div id="guideBanner" class="guidebanner" style="display:none"></div>
+
   <div class="stats">
     <div class="stat" id="stTotal"><b>-</b><span>总车位</span></div>
     <div class="stat" id="stOcc"><b>-</b><span>已占用</span></div>
@@ -105,7 +112,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="lot">
     <div class="lothead"><span>🅿 停车场平面图（俯视）</span><span id="lotState" class="lotbadge ok">—</span></div>
     <div class="bays" id="bays"></div>
-    <div class="lane"><span>⟵ 入口 · 出口 ⟶</span><span id="gate" class="gate closed">道闸 —</span></div>
+    <div class="lane"><span>⟵ 入口 · 出口 ⟶</span></div>
   </div>
 
   <div class="stats">
@@ -118,14 +125,6 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="panel" id="simPanel" style="display:none">
     <h2>演示控制 · 点击模拟车辆进出</h2>
     <div class="simbtns" id="simbtns"></div>
-  </div>
-
-  <div class="panel" id="gatePanel" style="display:none">
-    <h2>道闸控制</h2>
-    <div class="gatebtns">
-      <button class="gatebtn open" onclick="gate('open')">⬆ 开闸</button>
-      <button class="gatebtn close" onclick="gate('close')">⬇ 落闸</button>
-    </div>
   </div>
 
   <div class="panel">
@@ -176,10 +175,11 @@ function render(st) {
   for (var i = 0; i < st.slots.length; i++) {
     var s = st.slots[i];
     var occ = s.occupied;
-    html += '<div class="bay ' + (occ ? 'occ' : 'free') + '">' +
+    var asg = !occ && st.assignedSlot === (i + 1);
+    html += '<div class="bay ' + (occ ? 'occ' : 'free') + (asg ? ' assigned' : '') + '">' +
             '<span class="bno">P' + (i + 1) + '</span>' +
-            '<span class="car">' + (occ ? '🚗' : '') + '</span>' +
-            '<span class="binfo">' + (occ ? fmtDur(s.durationMs) : '空闲') + '</span>' +
+            '<span class="car">' + (occ ? '🚗' : (asg ? '⬇' : '')) + '</span>' +
+            '<span class="binfo">' + (occ ? fmtDur(s.durationMs) : (asg ? '在此停车' : '空闲')) + '</span>' +
             '</div>';
   }
   document.getElementById('bays').innerHTML = html;
@@ -189,6 +189,9 @@ function render(st) {
   if (st.simMode) {
     sp.style.display = '';
     var sb = '';
+    if (st.entryGuide) {
+      sb += '<button class="simbtn entry" onclick="entry()">🚘 车辆到达入口 · 自动放行并分配车位</button>';
+    }
     for (var k = 0; k < st.slots.length; k++) {
       var o = st.slots[k].occupied;
       sb += '<button class="simbtn ' + (o ? 'out' : 'in') + '" onclick="sim(' + (k + 1) + ')">' +
@@ -197,18 +200,6 @@ function render(st) {
     document.getElementById('simbtns').innerHTML = sb;
   } else {
     sp.style.display = 'none';
-  }
-
-  var g = document.getElementById('gate');
-  var gp = document.getElementById('gatePanel');
-  if (st.gateEnabled) {
-    g.style.display = '';
-    g.textContent = st.gateOpen ? '道闸 ▲ 已抬起' : '道闸 ▼ 已落下';
-    g.className = 'gate ' + (st.gateOpen ? 'open' : 'closed');
-    gp.style.display = '';
-  } else {
-    g.style.display = 'none';
-    gp.style.display = 'none';
   }
 
   var r = '';
@@ -222,6 +213,15 @@ function render(st) {
     r = '<div class="row muted">暂无记录</div>';
   }
   document.getElementById('recent').innerHTML = r;
+
+  document.getElementById('fireBanner').style.display = st.fireAlarm ? '' : 'none';
+  var gb = document.getElementById('guideBanner');
+  if (st.assignedSlot > 0) {
+    gb.style.display = '';
+    gb.textContent = '🚗 已分配车位 P' + st.assignedSlot + ' · 请按指引驶入';
+  } else {
+    gb.style.display = 'none';
+  }
 
   document.getElementById('msg').textContent = st.lastMessage;
   document.getElementById('up').textContent  = fmtDur(st.uptimeMs);
@@ -242,8 +242,8 @@ function sim(n) {
   fetch('/api/sim?slot=' + n, { method: 'POST' }).then(tick).catch(function () {});
 }
 
-function gate(action) {
-  fetch('/api/gate?action=' + action, { method: 'POST' }).then(tick).catch(function () {});
+function entry() {
+  fetch('/api/entry', { method: 'POST' }).then(tick).catch(function () {});
 }
 
 function resetStats() {
@@ -302,8 +302,8 @@ void WebDashboard::startServer() {
 #if ENABLE_SIM_MODE
     _server.on("/api/sim", HTTP_POST, [this]() { handleSim(); });
 #endif
-#if ENABLE_GATE
-    _server.on("/api/gate", HTTP_POST, [this]() { handleGate(); });
+#if ENABLE_ENTRY_GUIDE
+    _server.on("/api/entry", HTTP_POST, [this]() { handleEntry(); });
 #endif
     _server.onNotFound([this]() {
         _server.send(404, "application/json", "{\"error\":\"not found\"}");
@@ -414,14 +414,16 @@ void WebDashboard::handleStatus() {
 #else
     json += "false";
 #endif
-    json += ",\"gateEnabled\":";
-#if ENABLE_GATE
+    json += ",\"fireAlarm\":";
+    json += st.fireAlarm ? "true" : "false";
+    json += ",\"entryGuide\":";
+#if ENABLE_ENTRY_GUIDE
     json += "true";
 #else
     json += "false";
 #endif
-    json += ",\"gateOpen\":";
-    json += st.gateOpen ? "true" : "false";
+    json += ",\"assignedSlot\":";
+    json += st.assignedSlot;
     json += ",\"currency\":\"";
     appendJsonEscaped(json, CURRENCY_SYMBOL);
     json += "\",\"recent\":[";
@@ -473,20 +475,13 @@ void WebDashboard::handleSim() {
 }
 #endif
 
-#if ENABLE_GATE
-// 手动道闸接口：POST /api/gate?action=open|close。与进出场自动抬杆并行；
+#if ENABLE_ENTRY_GUIDE
+// 智能入场接口：POST /api/entry —— 模拟/远程触发"车辆到达入口"
+// （与拍入口触摸片等价）。有空位则分配车位并引导，满位则拒绝入场。
 // 同样受 ENABLE_WEB_MANUAL_CONTROL 控制（关闭后只读，返回 403）。
-void WebDashboard::handleGate() {
+void WebDashboard::handleEntry() {
 #if ENABLE_WEB_MANUAL_CONTROL
-    const String action = _server.arg("action");
-    if (action == "open") {
-        _pm->gateOpenManual();
-    } else if (action == "close") {
-        _pm->gateCloseManual();
-    } else {
-        _server.send(400, "application/json", "{\"ok\":false,\"error\":\"action must be open|close\"}");
-        return;
-    }
+    _pm->triggerEntry(millis());
     _server.send(200, "application/json", "{\"ok\":true}");
 #else
     _server.send(403, "application/json", "{\"ok\":false,\"error\":\"manual control disabled\"}");
