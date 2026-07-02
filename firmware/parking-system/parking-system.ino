@@ -8,7 +8,7 @@
 //   ParkingManager  主业务：识别车辆进出、触发计费、生成状态快照
 //   BillingService  按时长计费 + 营收/记录统计
 //   AlertService    蜂鸣器提示
-//   GateService     出入口道闸（SG90 舵机，进出场自动抬杆 + 手动开/落）
+//   SafetyService   火灾报警（火焰传感器 + 风扇联动）
 //   DisplayService  OLED SSD1306 显示
 //   WebDashboard    Wi-Fi + 网页 + JSON API
 //
@@ -22,7 +22,7 @@
 #include "src/SlotManager.h"
 #include "src/AlertService.h"
 #include "src/BillingService.h"
-#include "src/GateService.h"
+#include "src/SafetyService.h"
 #include "src/DisplayService.h"
 #include "src/ParkingManager.h"
 #include "src/WebDashboard.h"
@@ -30,7 +30,7 @@
 SlotManager     slotManager;
 AlertService    alertService;
 BillingService  billingService;
-GateService     gateService;
+SafetyService   safetyService;
 DisplayService  displayService;
 ParkingManager  parkingManager;
 WebDashboard    webDashboard;
@@ -54,8 +54,8 @@ void setup() {
     displayService.begin();
     slotManager.begin();
     billingService.begin();
-    gateService.begin();
-    parkingManager.begin(&slotManager, &alertService, &billingService, &gateService);
+    safetyService.begin(&alertService);
+    parkingManager.begin(&slotManager, &alertService, &billingService, &safetyService);
     webDashboard.begin(&parkingManager);
 
     Serial.println("[Boot] setup complete, entering main loop");
@@ -66,13 +66,13 @@ void loop() {
 
     // 输入采集
     slotManager.update(now);
+    safetyService.update(now);  // 火焰检测 + 报警/风扇状态机
 
     // 业务决策（识别车辆进出 + 触发计费）
     parkingManager.update(now);
 
     // 执行器与输出
     alertService.update(now);
-    gateService.update(now);  // 抬杆保持到点自动落杆
     displayService.update(now, parkingManager.status(), webDashboard.networkSummary());
     webDashboard.update(now);
 }

@@ -10,11 +10,11 @@
 
 ## 本期方案
 
-红外车位识别 + 车位管理 + 按时长计费 + SG90 出入口道闸（无 RFID）：车辆进出由
-每个车位的红外避障传感器判定——车位由空闲变占用即识别为车辆入场并开始计时，
-由占用变空闲即识别为离场并按停留时长结算费用；进 / 出场都联动道闸自动抬杆，
-保持数秒后自动落杆（另有网页手动开 / 落）。计费**仅为本地计算与展示**，
-不接任何真实支付。
+智能入场分配 + 红外车位识别 + 按时长计费（无 RFID、无舵机闸机）：
+入口触摸感应识别"车辆到达"→ 自动分配编号最小的空闲车位并引导（网页横幅 +
+车位高亮 + OLED "Go to Px"）；车位由空闲变占用即识别为车辆入场并开始计时，
+由占用变空闲即识别为离场并按停留时长结算费用。另有火灾报警（火焰检测 →
+循环警报 + 风扇联动）。计费**仅为本地计算与展示**，不接任何真实支付。
 
 ## 模块职责
 
@@ -24,7 +24,7 @@
 | `ParkingManager` | ParkingManager.h/.cpp | 主业务：识别车辆进出、触发计费、产生状态快照 |
 | `BillingService` | BillingService.h/.cpp | 按停留时长计费（整数「分」运算）、营收/停车次数/最近记录统计 |
 | `AlertService` | AlertService.h/.cpp | 蜂鸣器节奏（入场 1 短 / 离场 2 短 / 满位 1 长 / 报警循环预留） |
-| `GateService` | GateService.h/.cpp | 出入口道闸 SG90（LEDC PWM 驱动，非阻塞抬杆 + 定时自动落杆） |
+| `SafetyService` | SafetyService.h/.cpp | 火灾报警：火焰检测（确认/解除判定）+ 蜂鸣循环警报 + 风扇联动 |
 | `DisplayService` | DisplayService.h/.cpp | OLED SSD1306 状态显示 |
 | `WebDashboard` | WebDashboard.h/.cpp | Wi-Fi（STA + AP 兜底）、网页仪表盘、JSON API、清零收入接口 |
 | `ParkingTypes` | ParkingTypes.h | 共享枚举（AlertPattern）、车位/停车记录/状态快照结构、金额与时长格式化助手 |
@@ -36,10 +36,9 @@ flowchart LR
     SLOTS[SlotManager<br/>车位占用/满位] --> PM[ParkingManager]
     PM --> BILL[BillingService<br/>按时长计费/营收]
     PM --> ALERT[AlertService<br/>蜂鸣器]
-    PM --> GATE[GateService<br/>SG90 道闸]
     PM -- "status() 快照" --> OLED[DisplayService]
     PM -- "status() 快照" --> WEB[WebDashboard]
-    WEB -- "清零累计收入 / 开闸·落闸" --> PM
+    WEB -- "清零累计收入 / 入场事件" --> PM
 ```
 
 输入只产出事实（车位占用状态），决策集中在 `ParkingManager`：它跟踪每个车位的
@@ -66,8 +65,8 @@ stateDiagram-v2
   （长响 1 次），消息 `P2 in - Parking FULL`
 - **占用 → 空闲**：以 `now - _enterMs[i]` 为停留时长调用 `BillingService::recordSession`
   结算费用，蜂鸣器 `EXIT`（短响 2 次），消息形如 `P2 left 03:12  1.50`
-- **进 / 出场都触发道闸**：`GateService::open()` 抬杆放行，`GATE_OPEN_HOLD_MS` 后由
-  `GateService::update()` 自动落杆；网页 `/api/gate` 另可手动开 / 落（ENABLE_GATE 控制）
+- **入场分配**：入口触摸触发 `triggerEntry()` → 分配编号最小的空闲车位并引导，
+  停入该车位后引导清除；`ENTRY_ASSIGN_TIMEOUT_MS` 未停入自动作废；满位拒绝入场
 
 ## 计费模型
 
@@ -94,7 +93,8 @@ stateDiagram-v2
 | `totalRevenueCents` | 自启动/重置以来累计收入（分） |
 | `sessionCount` | 已结算的停车次数 |
 | `recent[]` / `recentCount` | 最近若干条停车记录（车位号 / 时长 / 费用），`recent[0]` 最新 |
-| `gateOpen` | 出入口道闸是否抬起（ENABLE_GATE=0 时恒为 false） |
+| `fireAlarm` | 火灾报警是否激活（ENABLE_FIRE_ALARM=0 时恒为 false） |
+| `assignedSlot` | 引导中的分配车位号（1 起），0 = 无分配 |
 | `lastMessage` | 最近一条系统事件消息（纯 ASCII，OLED 与 Web 共用） |
 | `uptimeMs` | 运行时间（毫秒） |
 
@@ -103,9 +103,9 @@ stateDiagram-v2
 ```
 loop():
   now = millis()
-  1. 输入采集   slotManager.update          # 红外车位去抖
-  2. 业务决策   parkingManager.update       # 识别进出 + 触发计费
-  3. 执行输出   alertService.update / gateService.update / displayService.update / webDashboard.update
+  1. 输入采集   slotManager.update / safetyService.update   # 车位去抖 / 火焰检测
+  2. 业务决策   parkingManager.update       # 入场分配引导 + 识别进出 + 触发计费
+  3. 执行输出   alertService.update / displayService.update / webDashboard.update
 ```
 
 全程无阻塞点：车位采集只是 `digitalRead` + 时间比较，计费是纯整数运算，
@@ -126,9 +126,9 @@ firmware/parking-system/
 
 ## Phase 2 扩展点
 
-- 火焰/烟雾报警：引脚已预留（GPIO 27 / 36），`AlertPattern::ALARM` 节奏已就位，
-  新增 `SafetyService` 即可接入
-- 风扇联动：GPIO 16 预留
+- 烟雾报警：GPIO 36（ADC1）已预留，接入 `SafetyService` 作为火焰之外的
+  第二路消防判定（MQ 模块需预热与阈值标定）
+- 语音播报：车位分配引导从"网页/OLED 屏显"升级为语音喊话（需外接语音模块）
 - 进出场计数与数据持久化：在 `BillingService` 之上累计进出场次数、把营收/记录
   落到 NVS/SPIFFS
 - 计费逻辑单元测试：`BillingService::computeFeeCents` 是纯函数，可直接在主机端
