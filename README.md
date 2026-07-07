@@ -1,6 +1,6 @@
 # 基于 ESP32 的智能停车场管理系统设计与实现
 
-ESP32 Smart Parking System — 大学毕业设计项目
+ESP32 Smart Parking System
 
 [![Arduino Compile](https://github.com/JacksonTai2007/esp32-smart-parking-system/actions/workflows/arduino-compile.yml/badge.svg)](https://github.com/JacksonTai2007/esp32-smart-parking-system/actions/workflows/arduino-compile.yml)
 
