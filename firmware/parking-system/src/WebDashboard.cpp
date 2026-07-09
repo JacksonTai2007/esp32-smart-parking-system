@@ -40,6 +40,11 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   @keyframes fireblink { 50% { opacity:.55; } }
   .guidebanner { background:#2c6df2; color:#fff; font-weight:700; text-align:center;
                  border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .rainbanner { background:#8a6d1d; color:#fff; font-weight:700; text-align:center;
+                border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .impactbanner { background:#b3541e; color:#fff; font-weight:700; text-align:center;
+                  border-radius:12px; padding:10px 12px; margin-bottom:12px;
+                  animation:fireblink 1s step-start infinite; }
   .bay.assigned { border-color:var(--acc); border-style:solid;
                   box-shadow:0 0 0 2px rgba(77,163,255,.35); }
   .bay.assigned .binfo { color:var(--acc); font-weight:600; }
@@ -90,6 +95,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .simbtn.in  { background:#1f6f43; }
   .simbtn.out { background:#8a4b1d; }
   .simbtn.entry { grid-column:1 / -1; background:#2c6df2; }
+  .ctrlbtn { background:#2c6df2; font-weight:600; }
   #btnReset { background:#33415e; }
   button:active { opacity:.75; }
   .foot { color:var(--dim); font-size:.72rem; text-align:center; margin-top:14px; }
@@ -101,6 +107,8 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <div class="sub">Smart Parking System · 车位识别 + 计费 · 毕业设计演示</div>
 
   <div id="fireBanner" class="firebanner" style="display:none">🔥 火灾报警 · 风扇已自动启动</div>
+  <div id="impactBanner" class="impactbanner" style="display:none">⚠ 检测到异常震动 · 疑似车辆碰撞</div>
+  <div id="rainBanner" class="rainbanner" style="display:none">🌧 检测到降雨 · 露天车位请注意</div>
   <div id="guideBanner" class="guidebanner" style="display:none"></div>
 
   <div class="stats">
@@ -121,6 +129,11 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     <div class="stat" id="stRate"><b>-</b><span>计费单价</span></div>
   </div>
   <div class="rule" id="rule">—</div>
+
+  <div class="panel" id="ctrlPanel" style="display:none">
+    <h2>远程控制 · 演示与真机通用</h2>
+    <div class="btns"><button class="ctrlbtn" onclick="entry()">🚘 车辆到达入口 · 自动分配车位</button></div>
+  </div>
 
   <div class="panel" id="simPanel" style="display:none">
     <h2>演示控制 · 点击模拟车辆进出</h2>
@@ -184,14 +197,13 @@ function render(st) {
   }
   document.getElementById('bays').innerHTML = html;
 
+  document.getElementById('ctrlPanel').style.display = st.entryGuide ? '' : 'none';
+
   var sp = document.getElementById('simPanel');
   document.getElementById('simTag').style.display = st.simMode ? '' : 'none';
   if (st.simMode) {
     sp.style.display = '';
     var sb = '';
-    if (st.entryGuide) {
-      sb += '<button class="simbtn entry" onclick="entry()">🚘 车辆到达入口 · 自动放行并分配车位</button>';
-    }
     for (var k = 0; k < st.slots.length; k++) {
       var o = st.slots[k].occupied;
       sb += '<button class="simbtn ' + (o ? 'out' : 'in') + '" onclick="sim(' + (k + 1) + ')">' +
@@ -215,6 +227,8 @@ function render(st) {
   document.getElementById('recent').innerHTML = r;
 
   document.getElementById('fireBanner').style.display = st.fireAlarm ? '' : 'none';
+  document.getElementById('impactBanner').style.display = st.impactAlert ? '' : 'none';
+  document.getElementById('rainBanner').style.display = st.rainAlert ? '' : 'none';
   var gb = document.getElementById('guideBanner');
   if (st.assignedSlot > 0) {
     gb.style.display = '';
@@ -416,6 +430,10 @@ void WebDashboard::handleStatus() {
 #endif
     json += ",\"fireAlarm\":";
     json += st.fireAlarm ? "true" : "false";
+    json += ",\"rainAlert\":";
+    json += st.rainAlert ? "true" : "false";
+    json += ",\"impactAlert\":";
+    json += st.impactAlert ? "true" : "false";
     json += ",\"entryGuide\":";
 #if ENABLE_ENTRY_GUIDE
     json += "true";

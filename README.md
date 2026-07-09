@@ -48,9 +48,14 @@ ESP32 Smart Parking System
   满位则拒绝入场
 - ✅ **火灾报警 + 风扇联动**（`ENABLE_FIRE_ALARM`）：火焰传感器检测到火情 →
   蜂鸣器循环警报 + 风扇（继电器）自动启动 + 网页红色警报横幅，火焰消失自动解除
+- ✅ **碰撞告警**（`ENABLE_IMPACT_ALERT`）：震动传感器检测到异常震动（车辆刮蹭/
+  撞击）→ 长响示警 + 网页橙色告警横幅，数秒自动消失（带冷却防刷屏）
+- ✅ **降雨提示**（`ENABLE_RAIN_ALERT`）：雨滴传感器检测到雨水 → 网页黄色提示
+  横幅 + OLED 消息，干燥后自动解除（露天车位提醒）
 - ✅ 本地 Web 仪表盘（停车场俯视平面图）+ JSON 状态 API + 一键清零收入（STA 失败自动开热点兜底）
 - ✅ 演示 / 模拟模式（`ENABLE_SIM_MODE`）：无红外传感器也能用网页按钮模拟车辆
-  到达入口与进出车位，跑通完整闭环，便于录制演示视频（详见 [docs/model-build.md](docs/model-build.md)）
+  到达入口与进出车位；入场分配数秒后**自动模拟驶入被分配车位**（`SIM_AUTO_PARK_MS`，
+  一次触发看完整链路），便于录制演示视频（详见 [docs/model-build.md](docs/model-build.md)）
 
 ### Phase 2（规划，引脚已预留）
 烟雾检测（MQ，GPIO 36 预留，为消防增加第二路传感）、对射式过车计数、
@@ -72,6 +77,8 @@ ESP32 Smart Parking System
 | 火焰传感器模块 | 1 | 火灾检测（可由 `ENABLE_FIRE_ALARM` 关闭） |
 | 继电器 + 直流风扇 | 1 | 火警自动排风（可选，不接只是没有风扇动作） |
 | TTP223 触摸模块 | 1 | 入口感应：智能入场识别（可由 `ENABLE_ENTRY_GUIDE` 关闭） |
+| 震动传感器模块 | 1 | 碰撞告警（可由 `ENABLE_IMPACT_ALERT` 关闭） |
+| 雨滴传感器模块 | 1 | 降雨提示（可由 `ENABLE_RAIN_ALERT` 关闭） |
 | 面包板、杜邦线、小车模型 | 若干 | 搭建与演示 |
 
 整体功耗很低，无舵机/电机类大电流执行器，USB 5V 直接供电即可
@@ -91,6 +98,8 @@ ESP32 Smart Parking System
 | 入口感应 | TTP223 触摸模块 | GPIO 25 | 智能入场 + 分配车位（内部下拉，未接不误触） |
 | 火灾报警 | 火焰传感器 | GPIO 27 | 内部上拉，未接不误报 |
 | 风扇联动 | 继电器/MOSFET | GPIO 16 | 火警自动启动 |
+| 降雨提示 | 雨滴传感器 | GPIO 17 | 内部上拉，未接不误报 |
+| 碰撞告警 | 震动传感器 | GPIO 18 | 内部上拉，未接不误报 |
 | 烟雾检测 | MQ 模块 | GPIO 36 | Phase 2 预留 |
 
 ⚠️ 关键项：ESP32 与各模块必须**共地**；GPIO 34/35 为输入专用脚，
@@ -112,7 +121,7 @@ ESP32 Smart Parking System
 | `BillingService` | 按时长计费 + 营收/停车记录统计 |
 | `DisplayService` | OLED 显示 |
 | `AlertService` | 蜂鸣器节奏 |
-| `SafetyService` | 火灾报警（火焰检测 + 循环警报 + 风扇联动） |
+| `SafetyService` | 环境安全三合一：火灾报警（+风扇联动）、降雨提示、碰撞告警 |
 | `WebDashboard` | 网页 + JSON API + Wi-Fi 管理 |
 
 约定：GPIO 只在 `config/Pins.h` 定义；阈值/单价/时长/功能开关只在

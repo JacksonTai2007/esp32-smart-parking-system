@@ -47,8 +47,8 @@ public:
 
 private:
     void setMessage(const char* msg);
-    void updateFireAlarm(uint32_t now);   // 火警状态变化 -> 消息同步
-    void updateEntry(uint32_t now);       // 入口触摸去抖 + 分配超时作废
+    void updateSafety(uint32_t now);      // 火警/降雨/碰撞状态变化 -> 消息同步
+    void updateEntry(uint32_t now);       // 入口触摸去抖 + 分配超时作废 + 演示自动驶入
 
     SlotManager*    _slots   = nullptr;
     AlertService*   _alerts  = nullptr;
@@ -59,6 +59,8 @@ private:
     uint32_t _enterMs[MAX_PARKING_SLOTS]  = {0};       // 车辆入场时刻（占用起算）
     char     _message[48]                 = "System ready";
     bool     _fireAlarmPrev               = false;     // 上一轮的火警状态（沿检测用）
+    bool     _rainAlertPrev               = false;     // 上一轮的降雨状态
+    bool     _impactAlertPrev             = false;     // 上一轮的碰撞告警状态
 #if ENABLE_ENTRY_GUIDE
     int8_t   _assignedSlot  = -1;     // 已分配待停入的车位下标，-1 = 无
     uint32_t _assignedAtMs  = 0;      // 分配时刻（超时作废用）
